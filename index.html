@@ -129,6 +129,7 @@ input[type="time"],input[type="number"]{color:var(--ink)}
   color:var(--primary-dark);letter-spacing:.1px;line-height:1.4;
 }
 .field-select select{width:100%;padding:14px 16px;margin:0}
+.field-select input{width:100%;padding:14px 16px;margin:0;color:var(--ink)}
 
 .password-wrapper{position:relative}
 .password-wrapper input{padding-right:48px}
@@ -491,8 +492,8 @@ function verifiedBadgeMarkup(size=15){
   <div class="form-grid">
     <div class="field"><input type="text" id="docFirstName" placeholder=" "><label for="docFirstName">First Name</label></div>
     <div class="field"><input type="text" id="docLastName" placeholder=" "><label for="docLastName">Last Name</label></div>
+    <div class="field-select"><label>Date of Birth</label><input type="date" id="docBirthDate"></div>
     <div class="field"><input type="tel" id="docPhone" placeholder=" " inputmode="numeric" maxlength="10"><label for="docPhone">Phone</label></div>
-    <div class="field"><input type="date" id="docBirthDate" placeholder=" "><label for="docBirthDate">Date of Birth</label></div>
     <div>
       <div class="field"><input type="email" id="docEmail" placeholder=" "><label for="docEmail">Email</label></div>
       <div id="emailErrMsg" class="msg msg-error"></div>
