@@ -1,0 +1,1535 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Medical Appointment System</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<style>
+/* ============================================================
+   Design tokens
+   ============================================================ */
+:root{
+  --primary:#2f5fe0;
+  --primary-dark:#1c42b3;
+  --primary-light:#5b83ec;
+  --primary-soft:#eaf0ff;
+  --accent:#159a7e;          /* teal — success / positive actions, distinct from primary */
+  --accent-soft:#e5f7f2;
+  --ink:#0f1b30;
+  --muted:#5c6b83;
+  --muted-soft:#8493a8;
+  --border:#e0e7f2;
+  --border-strong:#c7d4e8;
+  --surface:#ffffff;
+  --surface-soft:#f5f8fd;
+  --surface-tint:#eef3fb;
+  --danger:#e0464f;
+  --danger-soft:#fdedee;
+  --warning:#b3790a;
+  --warning-soft:#fff6e3;
+  --success:#159a7e;
+  --success-soft:#e5f7f2;
+  --radius-lg:4px;
+  --radius-md:4px;
+  --radius-sm:4px;
+  --shadow-lg:none;
+  --shadow-md:none;
+  --shadow-sm:none;
+  --font-display:'Manrope',Inter,"Segoe UI",Tahoma,sans-serif;
+  --font-body:'Inter',"Segoe UI",Tahoma,sans-serif;
+}
+
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{
+  font-family:var(--font-body);
+  background:
+    radial-gradient(circle at 12% 8%,rgba(47,95,224,.10),transparent 32%),
+    radial-gradient(circle at 88% 92%,rgba(21,154,126,.08),transparent 34%),
+    linear-gradient(160deg,#f6f9fe 0%,#eef3fc 100%);
+  margin:0;color:var(--ink);display:flex;justify-content:center;align-items:center;
+  min-height:100vh;padding:28px 16px;
+  -webkit-font-smoothing:antialiased;
+}
+body:before{
+  content:"";position:fixed;inset:0;pointer-events:none;
+  background:linear-gradient(120deg,rgba(255,255,255,.55),transparent 42%);
+}
+:focus-visible{outline:2.5px solid var(--primary-light);outline-offset:2px}
+
+/* ============================================================
+   Shell
+   ============================================================ */
+.container{
+  width:100%;max-width:1040px;margin:0;background:rgba(255,255,255,.97);
+  padding:44px 48px;border-radius:4px;box-shadow:none;
+  border:1px solid rgba(255,255,255,.9);position:relative;overflow:hidden;
+}
+.container:before{
+  content:"";position:absolute;left:0;right:0;top:0;height:4px;
+  background:linear-gradient(90deg,var(--primary-dark),var(--primary),var(--accent));
+}
+.step{display:none}
+.step.active{display:block}
+
+h2,h3,h4{font-family:var(--font-display);color:var(--ink);font-weight:800;letter-spacing:-.3px}
+h2,h3{margin-top:0;font-size:26px;text-align:center;margin-bottom:12px}
+h2:after,h3:after{content:"";display:block;width:40px;height:4px;border-radius:10px;background:var(--primary);margin:14px auto 0}
+h4{font-size:19px;text-align:center;margin:0 0 18px}
+p{line-height:1.6;color:var(--muted)}
+
+/* ============================================================
+   Forms
+   ============================================================ */
+.form-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.full-width{grid-column:span 2}
+label{display:none!important}
+input,select{
+  width:100%;padding:14px 16px;margin:6px 0;border:1.5px solid var(--border);
+  border-radius:4px;font-size:15px;font-family:var(--font-body);
+  background:var(--surface-soft);color:var(--ink);
+  transition:border-color .2s,box-shadow .2s,background .2s;
+}
+input::placeholder{color:var(--muted-soft);opacity:1}
+.field input::placeholder{color:transparent}
+select{color:var(--muted-soft)}
+select:valid{color:var(--ink)}
+input:hover,select:hover{border-color:var(--border-strong)}
+input:focus,select:focus{
+  border-color:var(--primary);outline:none;background:var(--surface);
+  box-shadow:0 0 0 4px var(--primary-soft);
+}
+input[type="time"],input[type="number"]{color:var(--ink)}
+
+/* ── Floating label (text/email/tel/password/number/time inputs) ── */
+.field{position:relative;margin:6px 0}
+.field input{width:100%;padding:19px 16px 9px;margin:0}
+.field.password-wrapper input{padding-right:48px}
+.field label{
+  display:block!important;position:absolute;left:17px;top:16px;
+  font-size:15px;color:var(--muted-soft);font-weight:500;pointer-events:none;
+  transition:top .16s ease,font-size .16s ease,color .16s ease,font-weight .16s ease;
+  max-width:calc(100% - 60px);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+}
+.field input:focus~label,
+.field input:not(:placeholder-shown)~label{
+  top:7px;font-size:11px;font-weight:700;color:var(--primary);
+}
+.field input:not(:focus):not(:placeholder-shown)~label{color:var(--muted)}
+
+/* ── Edge label for selects: fixed on the border, not floating ── */
+.field-select{position:relative;margin:14px 0 6px}
+.field-select label{
+  display:block!important;position:absolute;left:13px;top:-8px;z-index:1;
+  background:var(--surface);padding:0 7px;font-size:11px;font-weight:700;
+  color:var(--primary-dark);letter-spacing:.1px;line-height:1.4;
+}
+.field-select select{width:100%;padding:14px 16px;margin:0}
+
+.password-wrapper{position:relative}
+.password-wrapper input{padding-right:48px}
+.eye{
+  position:absolute;right:14px;top:50%;transform:translateY(-50%);
+  cursor:pointer;color:var(--muted);width:22px;height:22px;
+  display:flex;align-items:center;justify-content:center;
+}
+.eye svg{width:20px;height:20px;display:block}
+
+/* ============================================================
+   Buttons
+   ============================================================ */
+.btn-group{display:flex;flex-direction:column;gap:10px;margin-top:24px}
+button{
+  min-height:48px;padding:13px 22px;border:0;border-radius:4px;cursor:pointer;
+  font-family:var(--font-body);font-weight:700;font-size:14.5px;width:100%;
+  position:relative;letter-spacing:.1px;-webkit-tap-highlight-color:transparent;
+}
+button:active{transform:none}
+button:disabled{opacity:.5;cursor:not-allowed}
+
+.btn-primary{background:linear-gradient(135deg,var(--primary),var(--primary-dark));color:#fff}
+.btn-success{background:linear-gradient(135deg,var(--accent),#0d7a63);color:#fff}
+.btn-danger{background:var(--danger);color:#fff}
+.btn-back{
+  background:var(--surface);color:#334155;width:100%;padding:13px 24px;
+  border:1.5px solid var(--border);
+}
+.btn-back:hover{background:var(--surface-soft);border-color:var(--border-strong)}
+.btn-link{
+  background:none;border:0;color:var(--primary);cursor:pointer;margin-top:12px;
+  width:auto;font-size:14px;font-weight:600;padding:8px 4px;
+}
+.btn-link:hover{text-decoration:underline}
+.btn-icon{display:inline-flex;align-items:center;justify-content:center;margin-right:8px;vertical-align:-3px}
+.ui-icon{display:block;flex:none}
+
+.spinner{
+  display:inline-block;width:18px;height:18px;border:2.5px solid rgba(255,255,255,.3);
+  border-top-color:#fff;border-right-color:#fff;border-radius:50%;
+  animation:spin .6s linear infinite;margin-right:9px;vertical-align:-4px
+}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* ============================================================
+   Messages / badges
+   ============================================================ */
+.msg{border-radius:4px;padding:11px 15px;font-size:13.5px;margin-top:8px;display:none;font-weight:500}
+.msg-error{background:var(--danger-soft);border:1px solid #f6c7ca;color:#a3222b}
+.msg-success{background:var(--success-soft);border:1px solid #b9e6d9;color:#0d7a63}
+
+.service-status{font-size:11.5px;font-weight:750;padding:5px 11px;border-radius:999px;letter-spacing:.2px}
+.status-on{background:var(--success-soft);color:#0d7a63}
+.status-off{background:var(--danger-soft);color:#a3222b}
+.status-warning{background:var(--warning-soft);color:var(--warning)}
+
+/* ============================================================
+   Doctor cards
+   ============================================================ */
+#doctorsListContainer{
+  border:1.5px solid var(--border);background:var(--surface-soft);
+  max-height:340px;overflow-y:auto;padding:14px;border-radius:4px;margin-bottom:14px;
+}
+.doc-card{
+  background:var(--surface);padding:18px 20px;border-radius:4px;margin-bottom:12px;
+  display:flex;justify-content:space-between;align-items:center;
+  border:1.5px solid var(--border);gap:16px
+}
+.doc-card.inactive{border-color:#f3cdd1;background:#fffafa}
+.doc-card small .ui-icon{color:#000;flex:none}
+#chosenDoctorDisplay{color:var(--primary)}
+
+/* ============================================================
+   Dashboard
+   ============================================================ */
+.dashboard-nav{
+  display:flex;gap:8px;margin-bottom:20px;padding:5px;background:var(--surface-tint);
+  border:1px solid var(--border);border-radius:4px
+}
+.dashboard-nav button{
+  background:transparent;color:var(--muted);width:auto;padding:10px 20px;min-height:42px;
+  box-shadow:none
+}
+.dashboard-nav button.active-tab{background:var(--surface);color:var(--primary)}
+
+.day-filter-bar{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px}
+.day-filter-bar button{
+  width:auto;padding:8px 16px;font-size:13px;background:var(--surface-tint);
+  color:var(--muted);border:none;border-radius:4px;cursor:pointer;box-shadow:none;min-height:auto
+}
+.day-filter-bar button.active-filter{background:var(--primary);color:#fff}
+
+table{width:100%;border-collapse:separate;border-spacing:0;margin-top:10px;font-size:13px;overflow:hidden;border-radius:4px}
+th,td{border:0;border-bottom:1px solid var(--border);padding:12px;text-align:center}
+th{background:var(--ink);color:#fff;position:sticky;top:0;font-weight:700;font-family:var(--font-display);letter-spacing:.2px}
+tbody tr:not(.day-group-header):hover td{background:var(--surface-soft)}
+.day-badge{display:inline-block;padding:5px 11px;border-radius:999px;font-size:11px;font-weight:750}
+.badge-today{background:var(--success-soft);color:#0d7a63}
+.badge-yesterday{background:#eef1f6;color:var(--muted)}
+.badge-tomorrow{background:var(--primary-soft);color:var(--primary-dark)}
+.badge-other{background:var(--warning-soft);color:var(--warning)}
+.day-group-header td{background:var(--surface-tint);font-weight:750;color:var(--muted);font-size:12px;text-align:left;padding:9px 14px}
+
+/* Dashboard content cards (Settings / Subscription tabs) */
+.dashboard-card{
+  max-width:460px;margin:0 auto;background:var(--surface);
+  border:1.5px solid var(--border);border-radius:4px;
+  padding:26px;box-shadow:none;
+}
+.dashboard-card h4{color:var(--ink)}
+.field-label{display:block!important;margin:0 0 8px;color:#334155;font-size:13px;font-weight:700}
+.field-hint{font-size:12px;color:var(--muted);margin:2px 0 10px;line-height:1.55}
+.field-block{margin-top:22px}
+.field-block:first-child{margin-top:0}
+
+/* Toggle switch (accept bookings / working days) */
+.toggle-wrap{display:flex!important;align-items:center;justify-content:space-between;gap:12px;margin:0}
+.toggle-wrap>label:first-child{display:block!important;flex:1;margin:0;font-size:14px;font-weight:700;color:var(--ink)}
+.toggle{position:relative;width:50px;height:27px;flex:none;display:block!important;margin:0!important}
+.toggle input{position:absolute!important;opacity:0!important;width:0!important;height:0!important;margin:0!important}
+.slider{position:absolute;inset:0;background:#c9d5e8;border-radius:14px;cursor:pointer;transition:.25s;display:block;width:100%;height:100%}
+.slider:before{
+  content:"";position:absolute;width:21px;height:21px;left:3px;top:3px;background:#fff;
+  border-radius:50%;transition:.25s
+}
+.toggle input:checked+.slider{background:var(--accent)}
+.toggle input:checked+.slider:before{transform:translateX(23px)}
+
+.toggle-card{
+  display:flex;align-items:center;justify-content:space-between;gap:12px;
+  padding:14px 16px;background:var(--surface-soft);border:1px solid var(--border);border-radius:4px;
+}
+
+/* Settings tab: wider card on desktop so the day-grid and top row have room */
+#tab-settings-content .dashboard-card{max-width:680px}
+
+/* Daily limit + Accept new bookings: stacked on mobile, side-by-side on desktop */
+.settings-top-row{display:flex;flex-direction:column;gap:12px}
+.settings-top-row>.field{margin:0}
+.settings-top-row>.field input,.settings-top-row>.toggle-card{height:58px}
+
+#workingDaysContainer{display:flex;flex-direction:column;gap:8px}
+#workingDaysContainer .toggle-wrap{
+  padding:11px 14px;background:var(--surface-soft);border:1px solid var(--border);border-radius:4px;
+}
+#workingDaysContainer .toggle-wrap>label:first-child{font-size:13px;font-weight:650;color:#334155}
+
+@media(min-width:721px){
+  .settings-top-row{flex-direction:row;align-items:center}
+  .settings-top-row>.field,.settings-top-row>.toggle-card{flex:1}
+  #workingDaysContainer{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+}
+
+.summary-row{display:flex;justify-content:space-between;font-size:13px;color:var(--muted);margin-bottom:6px;gap:16px}
+.summary-row:last-child{margin-bottom:0}
+.summary-row strong{color:var(--ink);font-weight:700}
+.summary-box{margin-top:16px;background:var(--surface);border:1px solid var(--border);border-radius:4px;padding:14px 16px}
+
+/* ============================================================
+   Modals
+   ============================================================ */
+.modal-overlay{
+  position:fixed;inset:0;background:rgba(6,16,36,.6);backdrop-filter:blur(8px);
+  display:flex;align-items:center;justify-content:center;z-index:100;animation:fadeIn .3s
+}
+@keyframes fadeIn{from{opacity:0}to{opacity:1}}
+.modal-box{
+  background:var(--surface);border-radius:4px;padding:36px 32px;max-width:460px;width:92%;
+  box-shadow:none;text-align:center;border:1px solid var(--border)
+}
+.receipt-header{font-family:var(--font-display);font-size:21px;font-weight:800;color:var(--ink);margin-bottom:18px}
+.receipt-row{display:flex;justify-content:space-between;padding:10px 0;border-bottom:1px dashed var(--border);font-size:14px;gap:20px}
+.receipt-row:last-child{border:none}
+.receipt-key{color:var(--muted);font-weight:550}
+.receipt-val{font-weight:750;color:var(--ink)}
+.queue-big{font-family:var(--font-display);font-size:56px;font-weight:800;color:var(--primary);line-height:1;margin:16px 0 5px}
+.queue-label{color:var(--muted);font-size:13px}
+#receiptCapture{background:#fff!important;display:block!important;border:none!important;box-shadow:none!important}
+
+/* ============================================================
+   Home step
+   ============================================================ */
+#step-0{padding:50px 0!important;text-align:center}
+#step-0 h2{font-size:21px;letter-spacing:-.2px;margin-bottom:12px}
+#step-0 p{color:var(--muted);font-size:16px;margin-bottom:30px}
+#step-0 .btn-primary{min-height:56px;font-size:15.5px}
+#boot-warning{background:var(--primary-soft)!important;border:1px solid #cfe2ff!important;color:var(--primary-dark)!important}
+.type-cursor{color:var(--primary);font-weight:400;animation:caretBlink .8s steps(1) infinite}
+@keyframes caretBlink{50%{opacity:0}}
+
+@media(max-width:720px){
+  body{padding:12px}
+  .container{padding:28px 20px;border-radius:4px}
+  .form-grid{grid-template-columns:1fr;gap:10px}
+  .full-width{grid-column:auto}
+  .btn-group{gap:8px}
+  .btn-group button{min-width:0}
+  #step-0{padding:34px 0!important}
+  .doc-card{align-items:flex-start;flex-direction:column}
+  .doc-card button{width:100%!important}
+  .dashboard-nav{overflow:auto}
+  .dashboard-nav button{white-space:nowrap}
+  .modal-box{padding:30px 20px}
+}
+@media(max-width:460px){
+  .container{padding:22px 15px}
+  table{font-size:12px}
+  th,td{padding:9px 7px}
+}
+</style>
+
+<script>
+/* UI-only SVG icon helper. No external icon library is required. */
+function uiIcon(name, size=18){
+  const paths={
+    arrow:'<path d="M5 12h13M13 6l6 6-6 6"/>',
+    search:'<circle cx="11" cy="11" r="6.5"/><path d="m16 16 4 4"/>',
+    user:'<circle cx="12" cy="8" r="3.5"/><path d="M5 20c.7-3.2 3-5 7-5s6.3 1.8 7 5"/>',
+    doctor:'<path d="M8 4h8v5a4 4 0 0 1-8 0V4Z"/><path d="M12 13v3M9 20h6M8 20a4 4 0 0 1 8 0"/><path d="M17 7h3v3"/>',
+    calendar:'<rect x="4" y="5" width="16" height="15" rx="2"/><path d="M8 3v4M16 3v4M4 9h16"/>',
+    check:'<path d="m5 12 4 4L19 6"/>',
+    back:'<path d="M19 12H5M11 18l-6-6 6-6"/>',
+    save:'<path d="M5 4h11l3 3v13H5z"/><path d="M8 4v6h8V4M9 20v-5h6v5"/>',
+    settings:'<path d="M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8Z"/><path d="M4 12h-1M21 12h-1M12 4V3M12 21v-1M5.6 5.6l-.7-.7M19.1 19.1l-.7-.7M18.4 5.6l.7-.7M4.9 19.1l.7-.7"/>',
+    logout:'<path d="M10 5H5v14h5M15 8l4 4-4 4M19 12H9"/>',
+    mail:'<rect x="3" y="5" width="18" height="14" rx="2"/><path d="m4 7 8 6 8-6"/>',
+    pin:'<path d="M12 21s7-7.4 7-12.4A7 7 0 0 0 5 8.6C5 13.6 12 21 12 21Z"/><circle cx="12" cy="8.6" r="2.4"/>'
+  };
+  return '<svg class="ui-icon" width="'+size+'" height="'+size+'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'+(paths[name]||paths.arrow)+'</svg>';
+}
+function iconButtonMarkup(icon,label){ return '<span class="btn-icon">'+uiIcon(icon,17)+'</span><span>'+label+'</span>'; }
+function setDoctorVerifiedBadge(isVerified){
+  const el=document.getElementById('welcomeDocVerified');
+  if(!el) return;
+  el.innerHTML = isVerified ? ' '+verifiedBadgeMarkup(17) : '';
+}
+function verifiedBadgeMarkup(size=15){
+  return '<svg class="verified-badge" width="'+size+'" height="'+size+'" viewBox="0 0 24 24" aria-hidden="true" style="vertical-align:middle;position:relative;top:-1px">'+
+    '<path fill="#29A9EA" d="M12 2.2 14.4 4l2.9-.6 1 2.8 2.8 1-.6 2.9 1.8 2.4-1.8 2.4.6 2.9-2.8 1-1 2.8-2.9-.6L12 22.8 9.6 21l-2.9.6-1-2.8-2.8-1 .6-2.9L1.7 12.5l1.8-2.4-.6-2.9 2.8-1 1-2.8 2.9.6Z"/>'+
+    '<path d="m8.3 12.6 2.4 2.4 5-5.6" fill="none" stroke="#fff" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/>'+
+  '</svg>';
+}
+</script>
+
+</head>
+<body>
+<div class="container">
+
+<!-- ─── Step 0: Home ──────────────────────────────────── -->
+<div id="step-0" class="step active" style="text-align:center;padding:40px 0">
+  <h2 id="heroHeading" style="font-size:21px;line-height:1.45;margin-bottom:34px;min-height:62px">
+    <span id="heroTypedText"></span><span class="type-cursor">|</span>
+  </h2>
+  <div style="max-width:380px;margin:auto">
+    <button id="btn-book-start" class="btn-primary" onclick="nextStep(1)" style="padding:18px;font-size:16px;margin-bottom:14px">Book Now!</button>
+    <div id="boot-warning" style="display:none;margin-top:14px;background:#fef9c3;border:1px solid #fde68a;border-radius:10px;padding:11px 16px;font-size:13px;color:#92400e">
+       Could not load location data. Please check your internet connection and <a href="" style="color:#92400e;font-weight:700">refresh the page</a>.
+    </div>
+    <br>
+    <button class="btn-link" onclick="showLoginSection()" style="font-size:16px">Are you a Doctor? Log in</button>
+  </div>
+</div>
+
+<!-- ─── Step 1: Patient Info ──────────────────────────── -->
+<div id="step-1" class="step">
+  <h3>Patient Information</h3>
+  <div class="form-grid">
+    <div class="field"><input type="text" id="firstName" placeholder=" "><label for="firstName">First Name</label></div>
+    <div class="field"><input type="text" id="lastName" placeholder=" "><label for="lastName">Last Name</label></div>
+    <div class="field"><input type="tel" id="phone" placeholder=" " inputmode="numeric" maxlength="10"><label for="phone">Phone</label></div>
+  </div>
+  <div id="step1ErrMsg" class="msg msg-error"></div>
+  <div class="btn-group">
+    <button class="btn-primary" onclick="validateStep1()">Next</button>
+  </div>
+</div>
+
+<!-- ─── Step 2: Location ───────────────────────────────── -->
+<div id="step-2" class="step">
+  <h3>Select Doctor's Location</h3>
+  <div class="form-grid">
+    <div class="full-width field-select"><label>State (Wilaya)</label><select id="state" onchange="updateCircles()"><option value="">Select State</option></select></div>
+    <div class="full-width field-select"><label>Circle (Daïra)</label><select id="circle" onchange="updateMunicipalities()"><option value="">Select Circle</option></select></div>
+    <div class="full-width field-select"><label>Municipality (Baladiya)</label><select id="municipality"><option value="">Select Municipality</option></select></div>
+  </div>
+  <div id="step2ErrMsg" class="msg msg-error"></div>
+  <div class="btn-group">
+    <button class="btn-primary" onclick="validateStep2()">Next</button>
+  </div>
+</div>
+
+<!-- ─── Step 3: Type / Specialty ─────────────────────── -->
+<div id="step-3" class="step">
+  <h3>Doctor Specialty</h3>
+  <div class="field-select">
+    <label>Select Type</label>
+    <select id="doctorType" onchange="toggleSpecialty()">
+      <option value="General">General Practitioner</option>
+      <option value="Specialist">Specialist</option>
+    </select>
+  </div>
+  <div id="specialtyContainer" style="display:none">
+    <div class="field-select">
+      <label>Specialty</label>
+      <select id="specialty"><option value="">Select Specialty</option></select>
+    </div>
+  </div>
+  <div id="step3ErrMsg" class="msg msg-error"></div>
+  <div class="btn-group">
+    <button id="btnSearch" class="btn-primary" onclick="fetchAvailableDoctors()">Search Doctors</button>
+  </div>
+</div>
+
+<!-- ─── Step 4: Doctor List → Confirm ─────────────────── -->
+<div id="step-4" class="step">
+  <h3>Select a Doctor</h3>
+  <div class="field"><input type="text" id="doctorSearchInput" placeholder=" " oninput="filterDoctorsList()" style="margin-bottom:12px"><label for="doctorSearchInput">Search doctor by name...</label></div>
+  <div id="doctorsListContainer" style="max-height:340px;overflow-y:auto;border:2px solid #e2e8f0;padding:14px;border-radius:4px;background:#fafafa;margin-bottom:14px">
+    <p style="color:#64748b;text-align:center">No doctors loaded yet.</p>
+  </div>
+  <div class="btn-group">
+    <button id="btnConfirm" class="btn-success" onclick="submitBooking()" disabled>Confirm Booking</button>
+  </div>
+</div>
+
+<!-- ─── Doctor Login ───────────────────────────────────── -->
+<div id="doctor-login-section" class="step">
+  <h3>Welcome Back!</h3>
+  <div style="max-width:400px;margin:auto">
+    <div class="field"><input type="text" id="loginEmail" placeholder=" "><label for="loginEmail">Email or Phone</label></div>
+    <div class="field password-wrapper">
+      <input type="password" id="loginPassword" placeholder=" ">
+      <label for="loginPassword">Password</label>
+      <span class="eye" onclick="toggleEye('loginPassword',this)" aria-label="Show or hide password">
+  <svg class="eye-open" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M2.5 12s3.5-6 9.5-6 9.5 6 9.5 6-3.5 6-9.5 6-9.5-6-9.5-6Z"/>
+    <circle cx="12" cy="12" r="2.7"/>
+  </svg>
+  <svg class="eye-closed" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="display:none">
+    <path d="M3 3l18 18"/>
+    <path d="M10.6 5.1A10.7 10.7 0 0 1 12 5c6 0 9.5 7 9.5 7a18 18 0 0 1-3 3.7"/>
+    <path d="M6.2 6.2C3.9 7.8 2.5 12 2.5 12s3.5 6 9.5 6c1.4 0 2.6-.3 3.7-.8"/>
+  </svg>
+</span>
+    </div>
+    <div id="loginErr" class="msg msg-error"></div>
+    <div class="btn-group">
+      <button id="btnLogin" class="btn-primary" onclick="doctorLogin()">Login</button>
+    </div>
+    <div style="text-align:center;margin-top:18px">
+      <button class="btn-link" onclick="showSignUpSection()">Don't have an account? Sign Up</button>
+    </div>
+  </div>
+</div>
+
+<!-- ─── Doctor Sign Up — Step 1: Personal Information ─── -->
+<div id="doctor-signup-1" class="step">
+  <h3>Personal Information</h3>
+  <div class="form-grid">
+    <div class="field"><input type="text" id="docFirstName" placeholder=" "><label for="docFirstName">First Name</label></div>
+    <div class="field"><input type="text" id="docLastName" placeholder=" "><label for="docLastName">Last Name</label></div>
+    <div class="field"><input type="tel" id="docPhone" placeholder=" " inputmode="numeric" maxlength="10"><label for="docPhone">Phone</label></div>
+    <div>
+      <div class="field"><input type="email" id="docEmail" placeholder=" "><label for="docEmail">Email</label></div>
+      <div id="emailErrMsg" class="msg msg-error"></div>
+    </div>
+    <div class="field password-wrapper">
+      <input type="password" id="docPassword" placeholder=" ">
+      <label for="docPassword">Password</label>
+      <span class="eye" onclick="toggleEye('docPassword',this)" aria-label="Show or hide password">
+  <svg class="eye-open" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M2.5 12s3.5-6 9.5-6 9.5 6 9.5 6-3.5 6-9.5 6-9.5-6-9.5-6Z"/>
+    <circle cx="12" cy="12" r="2.7"/>
+  </svg>
+  <svg class="eye-closed" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="display:none">
+    <path d="M3 3l18 18"/>
+    <path d="M10.6 5.1A10.7 10.7 0 0 1 12 5c6 0 9.5 7 9.5 7a18 18 0 0 1-3 3.7"/>
+    <path d="M6.2 6.2C3.9 7.8 2.5 12 2.5 12s3.5 6 9.5 6c1.4 0 2.6-.3 3.7-.8"/>
+  </svg>
+</span>
+    </div>
+    <div class="field password-wrapper">
+      <input type="password" id="docConfirmPassword" placeholder=" ">
+      <label for="docConfirmPassword">Confirm Password</label>
+      <span class="eye" onclick="toggleEye('docConfirmPassword',this)" aria-label="Show or hide password">
+  <svg class="eye-open" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M2.5 12s3.5-6 9.5-6 9.5 6 9.5 6-3.5 6-9.5 6-9.5-6-9.5-6Z"/>
+    <circle cx="12" cy="12" r="2.7"/>
+  </svg>
+  <svg class="eye-closed" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="display:none">
+    <path d="M3 3l18 18"/>
+    <path d="M10.6 5.1A10.7 10.7 0 0 1 12 5c6 0 9.5 7 9.5 7a18 18 0 0 1-3 3.7"/>
+    <path d="M6.2 6.2C3.9 7.8 2.5 12 2.5 12s3.5 6 9.5 6c1.4 0 2.6-.3 3.7-.8"/>
+  </svg>
+</span>
+    </div>
+  </div>
+  <div id="docStep1ErrMsg" class="msg msg-error"></div>
+  <div class="btn-group">
+    <button class="btn-primary" onclick="validateDocStep1()">Next</button>
+  </div>
+</div>
+
+<!-- ─── Doctor Sign Up — Step 2: Location Information ─── -->
+<div id="doctor-signup-2" class="step">
+  <h3>Location Information</h3>
+  <div class="form-grid">
+    <div class="full-width field-select"><label>State (Wilaya)</label><select id="docState" onchange="updateDocCircles()"><option value="">Select State</option></select></div>
+    <div class="full-width field-select"><label>Circle (Daïra)</label><select id="docCircle" onchange="updateDocMunicipalities()"><option value="">Select Circle</option></select></div>
+    <div class="full-width field-select"><label>Municipality (Baladiya)</label><select id="docMunicipality"><option value="">Select Municipality</option></select></div>
+    <div class="full-width field"><input type="text" id="docAddress" placeholder=" "><label for="docAddress">Clinic Address</label></div>
+  </div>
+  <div id="docStep2ErrMsg" class="msg msg-error"></div>
+  <div class="btn-group">
+    <button class="btn-primary" onclick="validateDocStep2()">Next</button>
+  </div>
+</div>
+
+<!-- ─── Doctor Sign Up — Step 3: Doctor Type ───────────── -->
+<div id="doctor-signup-3" class="step">
+  <h3>Doctor Type</h3>
+  <div class="form-grid">
+    <div class="field-select full-width">
+      <label>Type</label>
+      <select id="docType" onchange="toggleDocSpecialty()">
+        <option value="General">General</option>
+        <option value="Specialist">Specialist</option>
+      </select>
+    </div>
+    <div id="docSpecialtyContainer" style="display:none" class="full-width">
+      <div class="field-select">
+        <label>Specialty</label>
+        <select id="docSpecialty"><option value="">Select Specialty</option></select>
+      </div>
+    </div>
+  </div>
+  <div class="btn-group">
+    <button id="btnRegister" class="btn-success" onclick="doctorSignUp()">Register</button>
+  </div>
+</div>
+
+<!-- ─── Doctor Dashboard ──────────────────────────────── -->
+<div id="doctor-dashboard" class="step">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;background:#f8fafc;padding:14px 18px;border-radius:4px">
+    <div>
+      <span id="welcomeDocName" style="font-weight:700;color:var(--primary);font-size:17px"></span><span id="welcomeDocVerified"></span><br>
+      <span id="serviceStatusBadge" class="service-status"></span>
+    </div>
+    <button class="btn-back" onclick="logoutDoctor()" style="padding:6px 14px;font-size:12px;width:auto;min-height:32px">Logout</button>
+  </div>
+
+  <div class="dashboard-nav">
+    <button id="nav-control" class="active-tab" onclick="switchTab('control')"> Appointments</button>
+    <button id="nav-settings" onclick="switchTab('settings')"> Settings</button>
+    <button id="nav-subscription" onclick="switchTab('subscription')"> Subscription</button>
+  </div>
+
+  <!-- Tab: Appointments -->
+  <div id="tab-control-content">
+    <div class="field"><input type="text" id="apptSearchInput" placeholder=" " oninput="renderAppointments(currentFilter)" style="margin-bottom:12px"><label for="apptSearchInput">Search by name or phone...</label></div>
+    <div id="dayFilterBar" style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px">
+      <button onclick="filterDay('ALL')" id="f-ALL" class="btn-primary" style="width:auto;padding:7px 16px;font-size:13px">All</button>
+      <button onclick="filterDay('YESTERDAY')" id="f-YESTERDAY" style="width:auto;padding:7px 16px;font-size:13px;background:#e2e8f0;color:#334155;border:none;border-radius:4px;cursor:pointer">Previous Day</button>
+      <button onclick="filterDay('TODAY')" id="f-TODAY" style="width:auto;padding:7px 16px;font-size:13px;background:#e2e8f0;color:#334155;border:none;border-radius:4px;cursor:pointer">Today</button>
+      <button onclick="filterDay('TOMORROW')" id="f-TOMORROW" style="width:auto;padding:7px 16px;font-size:13px;background:#e2e8f0;color:#334155;border:none;border-radius:4px;cursor:pointer">Next Day</button>
+    </div>
+    <div style="overflow-x:auto;max-height:380px;overflow-y:auto">
+      <table>
+        <thead><tr><th>#</th><th>First</th><th>Last</th><th>Phone</th><th>Day</th><th>Date</th><th>Queue</th></tr></thead>
+        <tbody id="appointmentsList"><tr><td colspan="7">Loading...</td></tr></tbody>
+      </table>
+    </div>
+    <p id="apptCount" style="font-size:13px;color:#64748b;margin-top:8px;text-align:right"></p>
+  </div>
+
+  <!-- Tab: Settings -->
+  <div id="tab-settings-content" style="display:none">
+    <h4>Doctor Settings</h4>
+    <div class="dashboard-card">
+      <div class="settings-top-row">
+        <div class="field"><input type="number" id="settingDailyLimit" min="1" max="500" value="40" placeholder=" "><label for="settingDailyLimit">Daily request limit</label></div>
+        <div class="toggle-card">
+          <span style="font-size:14px;font-weight:700;color:var(--ink)">Accept new bookings</span>
+          <label class="toggle">
+            <input type="checkbox" id="toggleActive" onchange="updateServiceStatus()">
+            <span class="slider"></span>
+          </label>
+          <span id="activeLabel" class="service-status status-on">Active</span>
+        </div>
+      </div>
+
+      <div class="field-block">
+        <label class="field-label">Working Days</label>
+        <p class="field-hint">Turn off any day you don't work. Patients will never be scheduled on an off day — they'll automatically get the next open working day instead.</p>
+        <div id="workingDaysContainer"></div>
+        <div id="workingDaysErrorMsg" class="msg msg-error" style="display:none;margin-top:8px"></div>
+      </div>
+
+      <div class="field-block">
+        <label class="field-label">Working Hours</label>
+        <p class="field-hint">If a patient books after your closing time, they'll be scheduled for the next working day — even if today isn't full yet.</p>
+        <div class="form-grid" style="gap:12px">
+          <div class="field"><input type="time" id="settingWorkStart" value="08:00" placeholder=" "><label for="settingWorkStart">Start</label></div>
+          <div class="field"><input type="time" id="settingWorkEnd" value="17:00" placeholder=" "><label for="settingWorkEnd">End</label></div>
+        </div>
+      </div>
+
+      <button id="btnSaveSettings" class="btn-success field-block" onclick="saveDoctorSettings()">Save Changes</button>
+      <div id="settingsSaved" class="msg msg-success">Settings saved successfully!</div>
+    </div>
+  </div>
+
+  <!-- Tab: Subscription -->
+  <div id="tab-subscription-content" style="display:none">
+    <h4>Subscription</h4>
+    <div class="dashboard-card">
+
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <span style="font-size:14px;font-weight:700;color:var(--ink)">Subscription Status</span>
+        <span id="subscriptionStatusBadge" class="service-status"></span>
+      </div>
+
+      <div class="summary-box">
+        <div class="summary-row">
+          <span>Current Plan</span>
+          <strong id="subscriptionPlanLabel">—</strong>
+        </div>
+        <div class="summary-row">
+          <span>Subscription End Date</span>
+          <strong id="subscriptionEndDate">—</strong>
+        </div>
+        <div class="summary-row">
+          <span>Days Remaining</span>
+          <strong id="subscriptionDaysRemaining">—</strong>
+        </div>
+      </div>
+
+      <div id="subscriptionRenewalBox" class="field-block" style="display:none;border-top:1px dashed var(--border);padding-top:20px">
+        <label class="field-label">Renew Subscription</label>
+        <p class="field-hint">Your subscription is ending soon. Enter your renewal activation code below to extend it. The plan length (3 / 6 / 12 months) depends on the code you were given.</p>
+        <div class="field"><input type="text" id="subscriptionCodeInput" placeholder=" " style="text-transform:uppercase"><label for="subscriptionCodeInput">Activation Code</label></div>
+        <button id="redeemBtn" class="btn-primary" style="margin-top:12px" onclick="redeemSubscriptionCode()"><span class="spinner" id="redeemSpinner" style="display:none"></span><span id="redeemBtnText">Activate Code</span></button>
+        <div id="subscriptionCodeMsg" class="msg" style="margin-top:10px;display:none"></div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+</div><!-- /container -->
+
+<!-- ─── Booking Receipt Modal ─────────────────────────── -->
+<div id="receiptModal" class="modal-overlay" style="display:none" onclick="closeReceipt(event)">
+  <div class="modal-box">
+    <div id="receiptCapture" style="background:#fff;padding:30px;border-radius:4px">
+      <div class="receipt-header">Booking Confirmed!</div>
+      <p style="color:#64748b;font-size:14px;margin-bottom:18px">Show this receipt to the doctor.</p>
+      <div id="receiptBody"></div>
+      <div class="queue-big" id="receiptQueue"></div>
+      <div class="queue-label">Your queue number</div>
+    </div>
+    <button class="btn-primary" style="margin-top:22px" onclick="saveReceiptAsImage()">Save as Image</button>
+    <button class="btn-primary" style="margin-top:10px" onclick="closeReceiptBtn()">Done</button>
+  </div>
+</div>
+
+<!-- ─── Signup Success Modal ───────────────────────────── -->
+<div id="signupSuccessModal" class="modal-overlay" style="display:none">
+  <div class="modal-box">
+    <div style="width:64px;height:64px;border-radius:50%;background:var(--primary-soft);color:var(--primary);display:flex;align-items:center;justify-content:center;margin:0 auto 18px">
+      <span id="signupSuccessIcon"></span>
+    </div>
+    <div class="receipt-header">Account Created Successfully!</div>
+    <p style="color:#64748b;font-size:14px;margin-bottom:4px">Welcome aboard. Your account is now active with a free 1-month trial period.</p>
+    <p style="color:#64748b;font-size:14px;margin-bottom:0">You can log in now using your email and password.</p>
+    <button class="btn-primary" style="margin-top:22px" onclick="closeSignupSuccessModal()">Go to Login</button>
+  </div>
+</div>
+
+<script>
+// ── Backend URL ──────────────────────────────────────────────
+// Replace this with your actual Render service URL after deployment.
+// Example: 'https://medical-app-backend.onrender.com/api'
+const scriptURL = 'https://YOUR-RENDER-APP.onrender.com/api';
+let regionsData = [], specialtiesData = [];
+let currentDoctorEmail = '';
+let fetchedDoctors = []; // آخر قائمة أطباء تم جلبها (لأجل البحث)
+let allAppointments = []; // كل مواعيد الطبيب
+let selectedDoctorName = '';
+let selectedDoctorActive = true;
+let selectedDoctorSpecialty = '';
+let selectedDoctorType = '';
+let currentFilter = 'ALL';
+const DAY_NAMES = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday']; // index matches JS Date.getDay()
+
+// ── Boot ──────────────────────────────────────────────────
+// جلب JSON مع retry تلقائي (يعالج مشكلة Apps Script يرجع HTML أول مرة)
+async function fetchJSON(url, retries = 3, delay = 800) {
+  // Add cache-buster; use & or ? depending on whether params already exist
+  const sep = url.includes('?') ? '&' : '?';
+  const bustUrl = url + sep + '_t=' + Date.now();
+  for (let i = 0; i < retries; i++) {
+    try {
+      const r = await fetch(bustUrl);
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      const text = await r.text();
+      const trimmed = text.trim();
+      if (!trimmed.startsWith('[') && !trimmed.startsWith('{')) {
+        if (i < retries - 1) { await new Promise(r => setTimeout(r, delay)); continue; }
+        return [];
+      }
+      return JSON.parse(trimmed);
+    } catch(e) {
+      if (i < retries - 1) await new Promise(r => setTimeout(r, delay));
+    }
+  }
+  return [];
+}
+
+function setLoadingState(on) {
+  const btn0 = document.getElementById('btn-book-start');
+  if (btn0) {
+    btn0.disabled = on;
+    btn0.innerHTML = on
+      ? '<span class="spinner"></span>Loading data...'
+      : 'Book Now!';
+  }
+}
+
+setLoadingState(true);
+
+Promise.all([
+  fetchJSON(`${scriptURL}?action=get_regions`),
+  fetchJSON(`${scriptURL}?action=get_specialties`)
+]).then(([settings, specs]) => {
+  regionsData    = Array.isArray(settings) ? settings : [];
+  specialtiesData = Array.isArray(specs)    ? specs    : [];
+
+  const states = [...new Set(regionsData.map(i => i[0]).filter(Boolean))];
+  populateSel('state',      states);
+  populateSel('docState',   states);
+  populateSel('specialty',  specialtiesData);
+  populateSel('docSpecialty', specialtiesData);
+
+  setLoadingState(false);
+
+  if (states.length === 0) {
+    document.getElementById('boot-warning').style.display = 'block';
+  }
+}).catch(() => {
+  setLoadingState(false);
+  document.getElementById('boot-warning').style.display = 'block';
+});
+
+// ── URL Routing (example.com/exec#login, #register, #dashboard, #book) ────
+// Apps Script web apps only serve the exact /exec URL — any sub-path like
+// /exec/dashboard returns a 404 straight from Google's servers on refresh,
+// before it ever reaches doGet(). The hash fragment is never sent to the
+// server at all, so we use it instead: the address bar still reflects the
+// current "page", but Refresh always re-requests the same /exec URL.
+function routeUrl(route) {
+  var base = window.location.href.split('#')[0];
+  return route ? base + '#' + route : base;
+}
+function setRoute(route, replace) {
+  var url = routeUrl(route);
+  if (!replace && window.location.href === url) return;
+  if (replace) history.replaceState({ route: route || 'home' }, '', url);
+  else history.pushState({ route: route || 'home' }, '', url);
+}
+function currentRouteSegment() {
+  var hash = window.location.hash.replace(/^#/, '');
+  return ['login', 'register', 'dashboard', 'book'].indexOf(hash) !== -1 ? hash : '';
+}
+
+// ── Helpers ───────────────────────────────────────────────
+function populateSel(id, items) {
+  const s = document.getElementById(id); if (!s) return;
+  const opts = (items || []).map(i => {
+    const v = String(i).trim();
+    return v ? `<option value="${v}">${v}</option>` : '';
+  }).join('');
+  s.innerHTML = '<option value="">— Select —</option>' + opts;
+}
+function nextStep(n, mode) {
+  document.querySelectorAll('.step').forEach(e=>e.classList.remove('active'));
+  document.getElementById('step-'+n).classList.add('active');
+  if (n === 0 || n === 1) {
+    var route = n === 0 ? '' : 'book';
+    mode = mode || 'push';
+    if (mode === 'push') setRoute(route, false);
+    else if (mode === 'replace') setRoute(route, true);
+  }
+}
+function showStepById(id) {
+  document.querySelectorAll('.step').forEach(e=>e.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+}
+function showLoginSection(mode) {
+  document.querySelectorAll('.step').forEach(e=>e.classList.remove('active'));
+  document.getElementById('doctor-login-section').classList.add('active');
+  mode = mode || 'push';
+  if (mode === 'push') setRoute('login', false);
+  else if (mode === 'replace') setRoute('login', true);
+}
+function showSignUpSection(mode) {
+  document.querySelectorAll('.step').forEach(e=>e.classList.remove('active'));
+  document.getElementById('doctor-signup-1').classList.add('active');
+  mode = mode || 'push';
+  if (mode === 'push') setRoute('register', false);
+  else if (mode === 'replace') setRoute('register', true);
+}
+function showDashboard(mode) {
+  document.querySelectorAll('.step').forEach(e=>e.classList.remove('active'));
+  document.getElementById('doctor-dashboard').classList.add('active');
+  mode = mode || 'push';
+  if (mode === 'push') setRoute('dashboard', false);
+  else if (mode === 'replace') setRoute('dashboard', true);
+}
+function toggleEye(id, el) {
+  const f=document.getElementById(id);
+  const showing = f.type === 'password';
+  f.type = showing ? 'text' : 'password';
+  const open = el.querySelector('.eye-open');
+  const closed = el.querySelector('.eye-closed');
+  if(open) open.style.display = showing ? 'none' : 'block';
+  if(closed) closed.style.display = showing ? 'block' : 'none';
+}
+function showMsg(id, text, type) {
+  const el=document.getElementById(id);
+  if(!el) return;
+  el.textContent=text; el.className='msg '+(type==='error'?'msg-error':'msg-success');
+  el.style.display='block';
+}
+function hideMsg(id){ const el=document.getElementById(id); if(el)el.style.display='none'; }
+
+// site-styled inline validation message (replaces native alert() for empty-field checks)
+function showFieldMsg(id, text){
+  const el=document.getElementById(id);
+  if(!el){ alert(text); return; }
+  el.textContent=text;
+  el.style.display='block';
+}
+
+// spinner helper
+function setBtnLoading(id, on, label) {
+  const b=document.getElementById(id); if(!b) return;
+  if(on){ b.disabled=true; b.innerHTML=`<span class="spinner"></span>${label||'Please wait...'}`; }
+  else { b.disabled=false; b.innerHTML=label||b.dataset.origLabel||''; }
+}
+
+// ── Location cascades ─────────────────────────────────────
+// regionsData row: [State(0), Circle(1), Municipality(2)]
+
+function updateCircles() {
+  const st = document.getElementById('state').value;
+  if (!st) return;
+  const circles = [...new Set(
+    regionsData.filter(i => String(i[0]).trim() === st.trim()).map(i => String(i[1]).trim()).filter(Boolean)
+  )];
+  populateSel('circle', circles);
+  populateSel('municipality', []);
+}
+
+function updateMunicipalities() {
+  const st = document.getElementById('state').value;
+  const ci = document.getElementById('circle').value;
+  if (!st || !ci) return;
+  const munis = [...new Set(
+    regionsData.filter(i => String(i[0]).trim() === st.trim() && String(i[1]).trim() === ci.trim())
+                .map(i => String(i[2]).trim()).filter(Boolean)
+  )];
+  populateSel('municipality', munis);
+}
+
+function updateDocCircles() {
+  const st = document.getElementById('docState').value;
+  if (!st) return;
+  const circles = [...new Set(
+    regionsData.filter(i => String(i[0]).trim() === st.trim()).map(i => String(i[1]).trim()).filter(Boolean)
+  )];
+  populateSel('docCircle', circles);
+  populateSel('docMunicipality', []);
+}
+
+function updateDocMunicipalities() {
+  const st = document.getElementById('docState').value;
+  const ci = document.getElementById('docCircle').value;
+  if (!st || !ci) return;
+  const munis = [...new Set(
+    regionsData.filter(i => String(i[0]).trim() === st.trim() && String(i[1]).trim() === ci.trim())
+                .map(i => String(i[2]).trim()).filter(Boolean)
+  )];
+  populateSel('docMunicipality', munis);
+}
+
+// ── Validation steps ──────────────────────────────────────
+const TRUSTED_EMAIL_DOMAINS = ['gmail.com','outlook.com','hotmail.com','yahoo.com','icloud.com','proton.me','protonmail.com','zohomail.com','gmx.com','mail.com'];
+function isValidTrustedEmail(email){
+  const e=(email||'').trim().toLowerCase();
+  const at=e.lastIndexOf('@');
+  if(at<=0) return false;
+  const domain=e.slice(at+1);
+  return TRUSTED_EMAIL_DOMAINS.includes(domain);
+}
+function isValidAlgerianPhone(phone){
+  return /^(05|06|07)[0-9]{8}$/.test((phone||'').trim());
+}
+function validateStep1() {
+  hideMsg('step1ErrMsg');
+  const phone=document.getElementById('phone').value.trim();
+  if(!document.getElementById('firstName').value.trim()||!phone) {
+    return showFieldMsg('step1ErrMsg','Please fill in your name and phone number.');
+  }
+  if(!isValidAlgerianPhone(phone)) {
+    return showFieldMsg('step1ErrMsg','Please enter a valid phone number.');
+  }
+  nextStep(2);
+}
+function validateStep2() {
+  hideMsg('step2ErrMsg');
+  if(!document.getElementById('state').value||!document.getElementById('circle').value||!document.getElementById('municipality').value) {
+    return showFieldMsg('step2ErrMsg','Please select State and Circle and Municipality.');
+  }
+  nextStep(3);
+}
+function toggleSpecialty() {
+  const on=document.getElementById('doctorType').value==='Specialist';
+  document.getElementById('specialtyContainer').style.display=on?'block':'none';
+}
+function toggleDocSpecialty() {
+  const on=document.getElementById('docType').value==='Specialist';
+  document.getElementById('docSpecialtyContainer').style.display=on?'block':'none';
+}
+
+// ── Doctor Sign Up: step validation ────────────────────────
+function validateDocStep1() {
+  hideMsg('docStep1ErrMsg');
+  const pass=document.getElementById('docPassword').value;
+  const docPhone=document.getElementById('docPhone').value.trim();
+  if(!document.getElementById('docFirstName').value.trim()||!document.getElementById('docLastName').value.trim()||!docPhone) {
+    return showFieldMsg('docStep1ErrMsg','Please fill in your name and phone number.');
+  }
+  if(!isValidAlgerianPhone(docPhone)) {
+    return showFieldMsg('docStep1ErrMsg','Please enter a valid phone number.');
+  }
+  if(!isValidTrustedEmail(document.getElementById('docEmail').value)) return showFieldMsg('docStep1ErrMsg','Please enter a valid email.');
+  if(!pass) return showFieldMsg('docStep1ErrMsg','Please enter a password.');
+  if(pass!==document.getElementById('docConfirmPassword').value) return showFieldMsg('docStep1ErrMsg','Passwords do not match!');
+  showStepById('doctor-signup-2');
+}
+function validateDocStep2() {
+  hideMsg('docStep2ErrMsg');
+  if(!document.getElementById('docState').value||!document.getElementById('docCircle').value||!document.getElementById('docMunicipality').value) {
+    return showFieldMsg('docStep2ErrMsg','Please select State and Circle and Municipality.');
+  }
+  showStepById('doctor-signup-3');
+}
+
+// ── Fetch doctors ─────────────────────────────────────────
+function fetchAvailableDoctors() {
+  hideMsg('step3ErrMsg');
+  const state=document.getElementById('state').value;
+  const mun=document.getElementById('municipality').value;
+  const type=document.getElementById('doctorType').value;
+  const spec=document.getElementById('specialty').value||'';
+  if(!state||!mun) return showFieldMsg('step3ErrMsg','Please select State and Municipality.');
+  if(type==='Specialist'&&!spec) return showFieldMsg('step3ErrMsg','Please select a specialty.');
+
+  setBtnLoading('btnSearch', true, 'Searching...');
+  fetch(`${scriptURL}?action=get_doctors&state=${encodeURIComponent(state)}&municipality=${encodeURIComponent(mun)}&type=${encodeURIComponent(type)}&specialty=${encodeURIComponent(spec)}`)
+  .then(r=>r.json())
+  .then(data=>{
+    fetchedDoctors = Array.isArray(data) ? data : [];
+    const search=document.getElementById('doctorSearchInput');
+    if(search) search.value='';
+    renderDoctorsList(fetchedDoctors);
+    nextStep(4);
+  })
+  .finally(()=>{ document.getElementById('btnSearch').disabled=false; document.getElementById('btnSearch').innerHTML='Search Doctors'; });
+}
+
+function renderDoctorsList(list) {
+  const cont=document.getElementById('doctorsListContainer');
+  cont.innerHTML='';
+  if(!list.length){ cont.innerHTML='<p style="color:red;text-align:center">No doctors found.</p>'; return; }
+  list.forEach(doc=>{
+    if(doc.isActive) {
+      cont.innerHTML+=`
+      <div class="doc-card">
+        <div>
+          <strong>${doc.fullName}</strong> ${doc.isVerified?verifiedBadgeMarkup(15):''} <span style="font-size:13px;color:#64748b">(${doc.type}${doc.specialty?' - '+doc.specialty:''})</span><br>
+          <small style="color:#64748b;display:inline-flex;align-items:center;gap:4px">${uiIcon('pin',14)}${doc.address||'No address'}</small>
+        </div>
+        <button class="btn-success select-btn" style="width:auto;padding:9px 18px" onclick="selectDoctor('${doc.fullName}',true,this)">Select</button>
+      </div>`;
+    } else {
+      cont.innerHTML+=`
+      <div class="doc-card inactive">
+        <div>
+          <strong>${doc.fullName}</strong> ${doc.isVerified?verifiedBadgeMarkup(15):''} <span style="font-size:13px;color:#64748b">(${doc.type}${doc.specialty?' - '+doc.specialty:''})</span><br>
+          <small style="color:#64748b;display:inline-flex;align-items:center;gap:4px">${uiIcon('pin',14)}${doc.address||'No address'}</small><br>
+          <span style="color:var(--danger);font-size:13px;font-weight:600">Booking unavailable at this time</span>
+        </div>
+        <button disabled style="width:auto;padding:9px 18px;background:#e2e8f0;color:#94a3b8;border:none;border-radius:4px;font-weight:600">Unavailable</button>
+      </div>`;
+    }
+  });
+}
+
+function filterDoctorsList() {
+  const term=(document.getElementById('doctorSearchInput').value||'').trim().toLowerCase();
+  if(!term){ renderDoctorsList(fetchedDoctors); return; }
+  const filtered=fetchedDoctors.filter(doc=>
+    (doc.fullName||'').toLowerCase().includes(term) ||
+    (doc.specialty||'').toLowerCase().includes(term)
+  );
+  renderDoctorsList(filtered);
+}
+
+function selectDoctor(name, active, btn) {
+  selectedDoctorName = name;
+  selectedDoctorActive = active;
+  const doc = fetchedDoctors.find(d=>d.fullName===name);
+  selectedDoctorSpecialty = doc ? (doc.specialty || '') : '';
+  selectedDoctorType = doc ? (doc.type || '') : '';
+  document.getElementById('btnConfirm').disabled = !active;
+
+  document.querySelectorAll('.select-btn').forEach(b=>{
+    if (b !== btn) b.textContent = 'Select';
+  });
+  if (btn) btn.textContent = '✓ Selected';
+}
+
+// ── Submit Booking ────────────────────────────────────────
+function submitBooking() {
+  if(!selectedDoctorName) return alert('Please select a doctor first.');
+  const bk = {
+    action:'book',
+    firstName: document.getElementById('firstName').value,
+    lastName:  document.getElementById('lastName').value,
+    phone:     document.getElementById('phone').value,
+    state:     document.getElementById('state').value,
+    doctor:    selectedDoctorName,
+    specialty: selectedDoctorSpecialty,
+    type:      selectedDoctorType
+  };
+  if(!bk.doctor) return alert('Please select a doctor.');
+
+  setBtnLoading('btnConfirm', true, 'Booking...');
+  fetch(scriptURL, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(bk)})
+  .then(r=>r.json())
+  .then(data=>{
+    if(data.result==='success') {
+      showReceipt(bk, data.assignedDate, data.queueNumber);
+    } else {
+      alert('Booking failed: '+(data.message||'Unknown error'));
+    }
+  })
+  .catch(()=>{
+    alert('Network error. Please check your connection and try again.');
+  })
+  .finally(()=>{ document.getElementById('btnConfirm').disabled=false; document.getElementById('btnConfirm').innerHTML='Confirm Booking'; });
+}
+
+// ── Receipt Modal ─────────────────────────────────────────
+function showReceipt(bk, date, queue) {
+  const specialtyRow = (bk.type==='Specialist' && bk.specialty)
+    ? `<div class="receipt-row"><span class="receipt-key">Specialty</span><span class="receipt-val">${bk.specialty}</span></div>`
+    : '';
+  document.getElementById('receiptBody').innerHTML=`
+    <div class="receipt-row"><span class="receipt-key">Patient</span><span class="receipt-val">${bk.firstName} ${bk.lastName}</span></div>
+    <div class="receipt-row"><span class="receipt-key">Phone</span><span class="receipt-val">${bk.phone}</span></div>
+    <div class="receipt-row"><span class="receipt-key">Doctor</span><span class="receipt-val">${bk.doctor}</span></div>
+    <div class="receipt-row"><span class="receipt-key">Type</span><span class="receipt-val">${bk.type||'—'}</span></div>
+    ${specialtyRow}
+    <div class="receipt-row"><span class="receipt-key">Assigned Date</span><span class="receipt-val">${date}</span></div>
+  `;
+  document.getElementById('receiptQueue').textContent = queue;
+  document.getElementById('receiptModal').style.display='flex';
+}
+function closeReceipt(e){ if(e.target===document.getElementById('receiptModal')) closeReceiptBtn(); }
+function closeReceiptBtn(){ document.getElementById('receiptModal').style.display='none'; location.reload(); }
+
+// ── Save Receipt as Image ──────────────────────────────────
+function saveReceiptAsImage() {
+  const el = document.getElementById('receiptCapture');
+  if (typeof html2canvas === 'undefined') { alert('Could not generate image. Please try again.'); return; }
+  
+  // Get element dimensions for precise capture
+  const width = el.offsetWidth;
+  const height = el.offsetHeight;
+  
+  html2canvas(el, {
+    backgroundColor:'#ffffff',
+    scale:3,  // Higher scale for better quality
+    width: width,
+    height: height,
+    allowTaint: true,
+    useCORS: true,
+    logging: false
+  }).then(function(canvas){
+    const link = document.createElement('a');
+    link.download = 'booking-receipt-' + new Date().getTime() + '.png';
+    link.href = canvas.toDataURL('image/png');
+    link.click();
+  }).catch(function(err){ 
+    console.error('Image generation error:', err);
+    alert('Could not generate image. Please try again.'); 
+  });
+}
+
+// ── Doctor Sign Up ────────────────────────────────────────
+function doctorSignUp() {
+  const pass=document.getElementById('docPassword').value;
+  if(pass!==document.getElementById('docConfirmPassword').value) return alert('Passwords do not match!');
+  hideMsg('emailErrMsg');
+
+  const d={
+    action:'signup',
+    firstName:    document.getElementById('docFirstName').value,
+    lastName:     document.getElementById('docLastName').value,
+    phone:        document.getElementById('docPhone').value,
+    email:        document.getElementById('docEmail').value,
+    password:     pass,
+    state:        document.getElementById('docState').value,
+    circle:       document.getElementById('docCircle').value,
+    municipality: document.getElementById('docMunicipality').value,
+    address:      document.getElementById('docAddress').value,
+    type:         document.getElementById('docType').value,
+    specialty:    document.getElementById('docSpecialty').value||''
+  };
+  if(!d.email||!d.password||!d.firstName||!d.circle) return alert('Please fill in required fields.');
+
+  setBtnLoading('btnRegister', true, 'Creating account...');
+  fetch(scriptURL,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(d)})
+  .then(r=>r.json())
+  .then(data=>{
+    if(data.result==='success'){ showSignupSuccessModal(); }
+    else showMsg('emailErrMsg',(data.message||'Registration failed.'),'error');
+  })
+  .catch(()=>alert('Network error. Please try again.'))
+  .finally(()=>{ document.getElementById('btnRegister').disabled=false; document.getElementById('btnRegister').innerHTML='Register'; });
+}
+function showSignupSuccessModal(){ document.getElementById('signupSuccessModal').style.display='flex'; }
+function closeSignupSuccessModal(){ document.getElementById('signupSuccessModal').style.display='none'; showLoginSection(); }
+
+// ── Doctor Login ──────────────────────────────────────────
+function doctorLogin() {
+  const email=document.getElementById('loginEmail').value;
+  const pass=document.getElementById('loginPassword').value;
+  if(!email||!pass){ showMsg('loginErr','Enter email or phone and password.','error'); return; }
+  hideMsg('loginErr');
+
+  setBtnLoading('btnLogin', true, 'Logging in...');
+  fetch(scriptURL,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'login',email,password:pass})})
+  .then(r=>r.json())
+  .then(data=>{
+    if(data.result==='success'){
+      currentDoctorEmail=data.doctor.email;
+      localStorage.setItem('doctorSessionEmail', data.doctor.email); // حفظ الجلسة للبقاء بعد Refresh
+      document.getElementById('welcomeDocName').innerText='Dr. '+data.doctor.fullName;
+      setDoctorVerifiedBadge(data.doctor.isVerified);
+      document.getElementById('settingDailyLimit').value=data.doctor.dailyLimit;
+      const active=data.doctor.isActive;
+      document.getElementById('toggleActive').checked=active;
+      renderWorkingDaysToggles(data.doctor.workingDays);
+      document.getElementById('settingWorkStart').value=data.doctor.workStart||'08:00';
+      document.getElementById('settingWorkEnd').value=data.doctor.workEnd||'17:00';
+      updateServiceStatus();
+      renderSubscriptionInfo(data.doctor);
+      showDashboard('push');
+      fetchDoctorDashboardData(data.doctor.email);
+    } else showMsg('loginErr',data.message||'Login failed.','error');
+  })
+  .catch(()=>showMsg('loginErr','Login error. Please try again.','error'))
+  .finally(()=>{ document.getElementById('btnLogin').disabled=false; document.getElementById('btnLogin').innerHTML='Login'; });
+}
+
+// ── Dashboard ─────────────────────────────────────────────
+function switchTab(tab) {
+  document.getElementById('nav-control').classList.toggle('active-tab',tab==='control');
+  document.getElementById('nav-settings').classList.toggle('active-tab',tab==='settings');
+  document.getElementById('nav-subscription').classList.toggle('active-tab',tab==='subscription');
+  document.getElementById('tab-control-content').style.display=tab==='control'?'block':'none';
+  document.getElementById('tab-settings-content').style.display=tab==='settings'?'block':'none';
+  document.getElementById('tab-subscription-content').style.display=tab==='subscription'?'block':'none';
+  hideMsg('settingsSaved');
+}
+
+function renderWorkingDaysToggles(activeDays) {
+  const set = new Set((activeDays && activeDays.length) ? activeDays : [0,1,2,3,4,5,6]);
+  const box = document.getElementById('workingDaysContainer');
+  box.innerHTML = DAY_NAMES.map((name, idx) => `
+    <div class="toggle-wrap" style="margin:0;justify-content:space-between">
+      <label style="margin:0">${name}</label>
+      <label class="toggle">
+        <input type="checkbox" class="wd-toggle" data-day="${idx}" ${set.has(idx)?'checked':''}>
+        <span class="slider"></span>
+      </label>
+    </div>`).join('');
+}
+
+function getSelectedWorkingDays() {
+  return Array.from(document.querySelectorAll('.wd-toggle'))
+    .filter(cb=>cb.checked)
+    .map(cb=>parseInt(cb.dataset.day,10));
+}
+
+function saveDoctorSettings() {
+  const limit=document.getElementById('settingDailyLimit').value;
+  const active=document.getElementById('toggleActive').checked;
+  const workingDays=getSelectedWorkingDays();
+  const workStart=document.getElementById('settingWorkStart').value||'08:00';
+  const workEnd=document.getElementById('settingWorkEnd').value||'17:00';
+  
+  if(workingDays.length===0){ 
+    showMsg('workingDaysErrorMsg','Please keep at least one working day active or disable Accept new bookings.','error'); 
+    return; 
+  }
+  hideMsg('workingDaysErrorMsg');
+  
+  if(workStart>=workEnd){ alert('Start time must be before end time.'); return; }
+  hideMsg('settingsSaved');
+  setBtnLoading('btnSaveSettings', true, 'Saving...');
+  fetch(scriptURL,{method:'POST',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({action:'update_settings',email:currentDoctorEmail,dailyLimit:limit,isActive:active,workingDays,workStart,workEnd})})
+  .then(r=>r.json())
+  .then(data=>{
+    if(data.result==='success') showMsg('settingsSaved','Settings saved!','success');
+    else alert('Error saving settings.');
+  })
+  .catch(()=>alert('Network error. Please try again.'))
+  .finally(()=>{ setBtnLoading('btnSaveSettings', false, 'Save Changes'); });
+}
+
+// ── Subscription ──────────────────────────────────────────
+function renderSubscriptionInfo(sub) {
+  if (!sub) return;
+  const badge = document.getElementById('subscriptionStatusBadge');
+  const statusText = {active:'Active', expiring:'Expiring Soon', expired:'Expired', unknown:'Unknown'}[sub.subscriptionStatus] || 'Unknown';
+  const statusClass = {active:'status-on', expiring:'status-warning', expired:'status-off', unknown:'status-off'}[sub.subscriptionStatus] || 'status-off';
+  badge.textContent = statusText;
+  badge.className = 'service-status ' + statusClass;
+
+  document.getElementById('subscriptionPlanLabel').textContent = sub.planLabel || (sub.subscriptionDuration ? sub.subscriptionDuration+' Months' : 'Free Trial');
+  document.getElementById('subscriptionEndDate').textContent = sub.subscriptionEnd || '—';
+  const days = sub.daysRemaining;
+  document.getElementById('subscriptionDaysRemaining').textContent =
+    (days === null || days === undefined) ? '—' :
+    (days < 0 ? 'Expired ' + Math.abs(days) + ' day(s) ago' : days + ' day(s)');
+
+  const renewalBox = document.getElementById('subscriptionRenewalBox');
+  renewalBox.style.display = sub.showRenewal ? 'block' : 'none';
+}
+
+function redeemSubscriptionCode() {
+  const code = document.getElementById('subscriptionCodeInput').value.trim();
+  const msgBox = document.getElementById('subscriptionCodeMsg');
+  const btn = document.getElementById('redeemBtn');
+  const spinner = document.getElementById('redeemSpinner');
+  const btnText = document.getElementById('redeemBtnText');
+  
+  if (!code) { msgBox.style.display='block'; msgBox.className='msg msg-error'; msgBox.textContent='Please enter an activation code.'; return; }
+  msgBox.style.display='none';
+  
+  // Show spinner and disable button
+  spinner.style.display='inline-block';
+  btnText.style.display='none';
+  btn.disabled=true;
+  
+  fetch(scriptURL,{method:'POST',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({action:'redeem_subscription_code',email:currentDoctorEmail,code})})
+  .then(r=>r.json())
+  .then(data=>{
+    // Hide spinner and enable button
+    spinner.style.display='none';
+    btnText.style.display='inline';
+    btn.disabled=false;
+    
+    msgBox.style.display='block';
+    if (data.result==='success') {
+      msgBox.className='msg msg-success';
+      msgBox.textContent='Subscription renewed! New end date: '+data.subscriptionEnd;
+      document.getElementById('subscriptionCodeInput').value='';
+      renderSubscriptionInfo(data);
+    } else {
+      msgBox.className='msg msg-error';
+      msgBox.textContent=data.message||'Could not activate this code.';
+    }
+  })
+  .catch(()=>{ 
+    // Hide spinner and enable button on error
+    spinner.style.display='none';
+    btnText.style.display='inline';
+    btn.disabled=false;
+    
+    msgBox.style.display='block'; msgBox.className='msg msg-error'; msgBox.textContent='Network error. Please try again.'; 
+  });
+}
+
+function updateServiceStatus() {
+  const on=document.getElementById('toggleActive').checked;
+  const badge=document.getElementById('activeLabel');
+  badge.textContent=on?'Active':'Inactive';
+  badge.className='service-status '+(on?'status-on':'status-off');
+  const sb=document.getElementById('serviceStatusBadge');
+  sb.textContent=on?' Accepting Bookings':' Bookings Paused';
+  sb.className='service-status '+(on?'status-on':'status-off');
+}
+
+// ── Appointments table ────────────────────────────────────
+function fetchDoctorDashboardData(email) {
+  fetch(`${scriptURL}?doctorEmail=${encodeURIComponent(email)}&_t=${Date.now()}`)
+  .then(r=>r.json())
+  .then(data=>{
+    allAppointments=data.appointments||[];
+    renderAppointments(currentFilter);
+    renderSubscriptionInfo(data);
+  });
+}
+
+function filterDay(key) {
+  currentFilter=key;
+  ['ALL','YESTERDAY','TODAY','TOMORROW'].forEach(k=>{
+    const b=document.getElementById('f-'+k);
+    if(!b)return;
+    b.style.background=k===key?'var(--primary)':'#e2e8f0';
+    b.style.color=k===key?'#fff':'#334155';
+  });
+  renderAppointments(key);
+}
+
+function dayLabelDisplay(key) {
+  if (key === 'YESTERDAY') return 'PREVIOUS DAY';
+  if (key === 'TOMORROW')  return 'NEXT DAY';
+  if (key === 'TODAY')     return 'TODAY';
+  return key;
+}
+
+function renderAppointments(filter) {
+  const tbody=document.getElementById('appointmentsList');
+  let list=allAppointments;
+  if(filter!=='ALL') list=list.filter(a=>a.dayLabel===filter||a.assignedDay===filter);
+
+  const searchBox=document.getElementById('apptSearchInput');
+  const term=searchBox ? searchBox.value.trim().toLowerCase() : '';
+  if(term){
+    list=list.filter(a=>
+      (a.firstName||'').toLowerCase().includes(term) ||
+      (a.lastName||'').toLowerCase().includes(term) ||
+      (a.phone||'').toLowerCase().includes(term)
+    );
+  }
+
+  if(!list.length){ tbody.innerHTML='<tr><td colspan="7" style="color:#64748b">No appointments found.</td></tr>'; document.getElementById('apptCount').textContent=''; return; }
+
+  // group by day
+  const groups={};
+  list.forEach(a=>{ const k=a.dayLabel; if(!groups[k])groups[k]=[]; groups[k].push(a); });
+
+  const dayOrder=['YESTERDAY','TODAY','TOMORROW'];
+  const otherDays=[...new Set(list.map(a=>a.dayLabel).filter(d=>!dayOrder.includes(d)))].sort();
+  const orderedKeys=[...dayOrder.filter(d=>groups[d]),...otherDays.filter(d=>groups[d])];
+
+  let html='', rowNum=0;
+  orderedKeys.forEach(key=>{
+    const label=dayOrder.includes(key)?(' '+dayLabelDisplay(key)):' '+groups[key][0].assignedDay;
+    html+=`<tr class="day-group-header"><td colspan="7">${label} — ${groups[key].length} patient(s)</td></tr>`;
+    groups[key].forEach(a=>{
+      rowNum++;
+      const badgeCls=key==='TODAY'?'badge-today':key==='YESTERDAY'?'badge-yesterday':key==='TOMORROW'?'badge-tomorrow':'badge-other';
+      html+=`<tr>
+        <td>${rowNum}</td>
+        <td>${a.firstName}</td><td>${a.lastName}</td>
+        <td>${a.phone}</td>
+        <td><span class="day-badge ${badgeCls}">${dayLabelDisplay(key)}</span></td>
+        <td>${a.assignedDay}</td>
+        <td><strong>#${a.queueNumber}</strong></td>
+      </tr>`;
+    });
+  });
+  tbody.innerHTML=html;
+  document.getElementById('apptCount').textContent=`Total shown: ${list.length} appointment(s)`;
+}
+
+function logoutDoctor(){ currentDoctorEmail=''; allAppointments=[]; localStorage.removeItem('doctorSessionEmail'); nextStep(0); }
+
+// ── استرجاع جلسة الطبيب تلقائياً بعد Refresh ────────────────
+// إن كان الطبيب مسجّلاً دخوله سابقاً (بريده محفوظ من آخر تسجيل دخول ناجح)،
+// نعيد فتح لوحة التحكم مباشرة بدل الرجوع لشاشة التسجيل، ونجلب أحدث
+// إعداداته ومواعيده من الشيت مباشرة عبر بريده (بدون الحاجة لكلمة السر مجدداً)
+function restoreDoctorSession() {
+  const savedEmail = localStorage.getItem('doctorSessionEmail');
+  if (!savedEmail) {
+    if (currentRouteSegment() === 'dashboard') showLoginSection('replace');
+    return;
+  }
+  fetch(`${scriptURL}?doctorEmail=${encodeURIComponent(savedEmail)}&_t=${Date.now()}`)
+  .then(r=>r.json())
+  .then(data=>{
+    if (!data || !data.doctorName) {
+      localStorage.removeItem('doctorSessionEmail');
+      if (currentRouteSegment() === 'dashboard') showLoginSection('replace');
+      return;
+    }
+    currentDoctorEmail = savedEmail;
+    document.getElementById('welcomeDocName').innerText='Dr. '+data.doctorName;
+    setDoctorVerifiedBadge(data.isVerified);
+    document.getElementById('settingDailyLimit').value=data.dailyLimit;
+    document.getElementById('toggleActive').checked=data.isActive;
+    renderWorkingDaysToggles(data.workingDays);
+    document.getElementById('settingWorkStart').value=data.workStart||'08:00';
+    document.getElementById('settingWorkEnd').value=data.workEnd||'17:00';
+    updateServiceStatus();
+    renderSubscriptionInfo(data);
+    allAppointments=data.appointments||[];
+    renderAppointments(currentFilter);
+    showDashboard('replace');
+  })
+  .catch(()=>{
+    if (currentRouteSegment() === 'dashboard') showLoginSection('replace');
+  });
+}
+
+// ── Apply the route from the address bar on first load ────
+(function initRouter(){
+  var route = currentRouteSegment();
+  if (route === 'login') showLoginSection('none');
+  else if (route === 'register') showSignUpSection('none');
+  else if (route === 'book') nextStep(1, 'none');
+  // 'dashboard' and '' (home) are resolved by restoreDoctorSession() below,
+  // which redirects /dashboard → /login when there is no valid session.
+})();
+
+// ── Browser Back / Forward ─────────────────────────────────
+window.addEventListener('popstate', function(){
+  var route = currentRouteSegment();
+  if (route === 'login') showLoginSection('none');
+  else if (route === 'register') showSignUpSection('none');
+  else if (route === 'book') nextStep(1, 'none');
+  else if (route === 'dashboard') {
+    if (currentDoctorEmail) showDashboard('none');
+    else showLoginSection('replace');
+  } else {
+    nextStep(0, 'none');
+  }
+});
+
+restoreDoctorSession();
+</script>
+
+<script>
+document.addEventListener('DOMContentLoaded',function(){
+  var successIcon=document.getElementById('signupSuccessIcon');
+  if(successIcon) successIcon.innerHTML=uiIcon('check',30);
+
+  // Typewriter effect for the home headline: types out, pauses, erases, loops
+  var typedEl=document.getElementById('heroTypedText');
+  if(typedEl){
+    var heroText='Choose your doctor, and book your appointment anytime';
+    var i=0, deleting=false;
+    function tick(){
+      if(!deleting){
+        i++;
+        typedEl.textContent=heroText.slice(0,i);
+        if(i>=heroText.length){ deleting=true; setTimeout(tick,1900); return; }
+        setTimeout(tick,45);
+      } else {
+        i--;
+        typedEl.textContent=heroText.slice(0,i);
+        if(i<=0){ deleting=false; setTimeout(tick,500); return; }
+        setTimeout(tick,25);
+      }
+    }
+    tick();
+  }
+});
+</script>
+
+
+<script>
+(function(){
+  function syncWorkingDaysUI(days){
+    var values = Array.isArray(days) ? days : [];
+    document.querySelectorAll('#workingDaysContainer input[type="checkbox"]').forEach(function(cb){
+      cb.checked = values.indexOf(cb.value) !== -1;
+    });
+  }
+  window.syncWorkingDaysUI = syncWorkingDaysUI;
+
+  document.addEventListener('DOMContentLoaded', function(){
+    document.querySelectorAll('#workingDaysContainer input[type="checkbox"]').forEach(function(cb){
+      cb.addEventListener('change', function(){
+        cb.closest('.working-day-row').classList.toggle('is-selected', cb.checked);
+      });
+    });
+  });
+})();
+</script>
+
+</body>
+</html>
