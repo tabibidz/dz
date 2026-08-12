@@ -492,6 +492,7 @@ function verifiedBadgeMarkup(size=15){
     <div class="field"><input type="text" id="docFirstName" placeholder=" "><label for="docFirstName">First Name</label></div>
     <div class="field"><input type="text" id="docLastName" placeholder=" "><label for="docLastName">Last Name</label></div>
     <div class="field"><input type="tel" id="docPhone" placeholder=" " inputmode="numeric" maxlength="10"><label for="docPhone">Phone</label></div>
+    <div class="field"><input type="date" id="docBirthDate" placeholder=" "><label for="docBirthDate">Date of Birth</label></div>
     <div>
       <div class="field"><input type="email" id="docEmail" placeholder=" "><label for="docEmail">Email</label></div>
       <div id="emailErrMsg" class="msg msg-error"></div>
@@ -976,6 +977,9 @@ function validateDocStep1() {
   if(!isValidAlgerianPhone(docPhone)) {
     return showFieldMsg('docStep1ErrMsg','Please enter a valid phone number.');
   }
+  if(!document.getElementById('docBirthDate').value) {
+    return showFieldMsg('docStep1ErrMsg','Please enter your date of birth.');
+  }
   if(!isValidTrustedEmail(document.getElementById('docEmail').value)) return showFieldMsg('docStep1ErrMsg','Please enter a valid email.');
   if(!pass) return showFieldMsg('docStep1ErrMsg','Please enter a password.');
   if(pass!==document.getElementById('docConfirmPassword').value) return showFieldMsg('docStep1ErrMsg','Passwords do not match!');
@@ -1154,6 +1158,7 @@ function doctorSignUp() {
     firstName:    document.getElementById('docFirstName').value,
     lastName:     document.getElementById('docLastName').value,
     phone:        document.getElementById('docPhone').value,
+    birthDate:    document.getElementById('docBirthDate').value,
     email:        document.getElementById('docEmail').value,
     password:     pass,
     state:        document.getElementById('docState').value,
