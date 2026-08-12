@@ -149,17 +149,6 @@ async function ensureTrial(doctor) {
   };
 }
 
-/** Generate random subscription code: XXXXX-XXXXX */
-function generateCode() {
-  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-  let code = '';
-  for (let i = 0; i < 10; i++) {
-    if (i > 0 && i % 5 === 0) code += '-';
-    code += chars[Math.floor(Math.random() * chars.length)];
-  }
-  return code;
-}
-
 // ── Parse body ────────────────────────────────────────────────
 // Supports both JSON body and text/plain (as Apps Script did)
 function parseBody(req) {
@@ -441,17 +430,27 @@ app.post('/api', async (req, res) => {
     if (!code)  return fail(res, 'Please enter an activation code.');
     if (!email) return fail(res, 'Doctor email required.');
 
-    // Find the code
-    const { data: codeRows } = await supabase
+    // subscription_codes has ONE row (id=1) with three array columns —
+    // find which duration column this code belongs to
+    const { data: rows } = await supabase
       .from('subscription_codes')
       .select('*')
-      .eq('code', code)
+      .eq('id', 1)
       .limit(1);
+    const row = rows && rows[0];
 
-    if (!codeRows || !codeRows.length)
-      return fail(res, 'Invalid or already-used activation code.');
-
-    const codeRow = codeRows[0];
+    const DURATION_COLUMNS = { codes_3_months: 3, codes_6_months: 6, codes_12_months: 12 };
+    let matchedCol = null, durationMonths = null;
+    if (row) {
+      for (const col of Object.keys(DURATION_COLUMNS)) {
+        if ((row[col] || []).includes(code)) {
+          matchedCol = col;
+          durationMonths = DURATION_COLUMNS[col];
+          break;
+        }
+      }
+    }
+    if (!matchedCol) return fail(res, 'Invalid or already-used activation code.');
 
     // Find doctor
     const { data: docs } = await supabase
@@ -468,26 +467,29 @@ app.post('/api', async (req, res) => {
 
     // Extend from current end date (or today if already expired)
     const newStart = curEnd && curEnd >= today ? curEnd : today;
-    const newEnd   = addMonths(newStart, codeRow.duration_months);
+    const newEnd   = addMonths(newStart, durationMonths);
 
     await supabase.from('doctors').update({
       subscription_start:    newStart,
       subscription_end:      newEnd,
-      subscription_duration: codeRow.duration_months
+      subscription_duration: durationMonths
     }).eq('id', doc.id);
 
-    // Delete used code (one-time use)
-    await supabase.from('subscription_codes').delete().eq('id', codeRow.id);
+    // Remove the code from its column's array (one-time use)
+    const updatedArr = (row[matchedCol] || []).filter(c => c !== code);
+    await supabase.from('subscription_codes')
+      .update({ [matchedCol]: updatedArr, updated_at: new Date().toISOString() })
+      .eq('id', 1);
 
     // Log usage
     await supabase.from('used_subscription_codes').insert({
       code,
-      duration_months: codeRow.duration_months,
+      duration_months: durationMonths,
       used_by:  email,
       used_date: nowStr()
     });
 
-    const info = subscriptionInfo(newStart, newEnd, codeRow.duration_months);
+    const info = subscriptionInfo(newStart, newEnd, durationMonths);
     return ok(res, {
       subscriptionStart:    info.subscriptionStart,
       subscriptionEnd:      info.subscriptionEnd,
@@ -600,31 +602,6 @@ app.post('/api', async (req, res) => {
   }
 
   return fail(res, 'Unknown action');
-});
-
-// =============================================================
-// POST /admin/generate-codes  — Admin only (ADMIN_SECRET header)
-// =============================================================
-app.post('/admin/generate-codes', async (req, res) => {
-  const secret = req.headers['x-admin-secret'];
-  if (!secret || secret !== process.env.ADMIN_SECRET)
-    return res.status(403).json({ error: 'Forbidden' });
-
-  const { duration, count } = req.body;
-  if (![3, 6, 12].includes(Number(duration)))
-    return res.status(400).json({ error: 'duration must be 3, 6, or 12' });
-  if (!count || count < 1 || count > 100)
-    return res.status(400).json({ error: 'count must be 1–100' });
-
-  const codes = [];
-  for (let i = 0; i < count; i++) {
-    codes.push({ code: generateCode(), duration_months: Number(duration) });
-  }
-
-  const { error } = await supabase.from('subscription_codes').insert(codes);
-  if (error) return res.status(500).json({ error: error.message });
-
-  return res.json({ result: 'success', generated: codes.map(c => c.code) });
 });
 
 // =============================================================
