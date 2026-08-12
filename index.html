@@ -175,6 +175,14 @@ button:disabled{opacity:.5;cursor:not-allowed}
 }
 @keyframes spin{to{transform:rotate(360deg)}}
 
+/* Arc spinner — replaces the button's text entirely while an action is
+   in flight (search / register / login / confirm booking / save changes) */
+.arc-spinner{
+  display:inline-block;width:20px;height:20px;border:2.5px solid rgba(255,255,255,.3);
+  border-top-color:#fff;border-right-color:#fff;border-radius:50%;
+  animation:spin .6s linear infinite;vertical-align:-5px
+}
+
 /* ============================================================
    Messages / badges
    ============================================================ */
@@ -876,11 +884,19 @@ function showFieldMsg(id, text){
   el.style.display='block';
 }
 
-// spinner helper
+// arc-spinner helper — while loading, the button's text disappears
+// completely and only the spinning arc stays visible (search, first-time
+// registration, login, confirm booking, save changes all use this).
 function setBtnLoading(id, on, label) {
   const b=document.getElementById(id); if(!b) return;
-  if(on){ b.disabled=true; b.innerHTML=`<span class="spinner"></span>${label||'Please wait...'}`; }
-  else { b.disabled=false; b.innerHTML=label||b.dataset.origLabel||''; }
+  if(on){
+    if(!b.dataset.origLabel) b.dataset.origLabel=b.innerHTML;
+    b.disabled=true;
+    b.innerHTML='<span class="arc-spinner"></span>';
+  } else {
+    b.disabled=false;
+    b.innerHTML=label||b.dataset.origLabel||'';
+  }
 }
 
 // ── Location cascades ─────────────────────────────────────
@@ -1128,10 +1144,14 @@ function saveReceiptAsImage() {
   // Get element dimensions for precise capture
   const width = el.offsetWidth;
   const height = el.offsetHeight;
-  
+
+  // Scale up so the exported image is always at least Full HD (1920x1080),
+  // no matter how small the receipt card is on screen.
+  const scale = Math.max(3, 1920 / width, 1080 / height);
+
   html2canvas(el, {
     backgroundColor:'#ffffff',
-    scale:3,  // Higher scale for better quality
+    scale: scale,  // Higher scale for Full HD+ quality
     width: width,
     height: height,
     allowTaint: true,
