@@ -351,6 +351,7 @@ app.post('/api', async (req, res) => {
       first_name:           data.firstName   || '',
       last_name:            data.lastName    || '',
       phone:                data.phone       || '',
+      birth_date:           data.birthDate   || null,
       email,
       password:             data.password    || '',
       state:                data.state       || '',
