@@ -541,6 +541,27 @@ app.post('/api', async (req, res) => {
     if (!doctorAvailable)
       return fail(res, 'This doctor is not currently accepting bookings.');
 
+    // ── Duplicate phone check ─────────────────────────────
+    // Block re-booking if this phone already has an active (non-expired)
+    // appointment with the same doctor that hasn't been auto-deleted yet.
+    if (data.phone) {
+      const today0 = todayStr();
+      const wdSet0 = doc ? parseWorkingDays(doc.working_days) : new Set([0,1,2,3,4,5,6]);
+      const cutoff0 = previousWorkingDay(today0, wdSet0); // same cutoff used by auto-cleanup
+
+      const { data: existing } = await supabase
+        .from('appointments')
+        .select('id, assigned_date')
+        .eq('doctor_name', wantedDoctor)
+        .eq('phone', String(data.phone).trim())
+        .gte('assigned_date', cutoff0)
+        .limit(1);
+
+      if (existing && existing.length) {
+        return fail(res, 'لديك موعد محجوز مسبقاً مع هذا الطبيب. يُرجى الانتظار حتى انتهاء موعدك الحالي.');
+      }
+    }
+
     const startDay = todayStr();
     const timeNow  = nowTime();
     let checkDay   = startDay;
@@ -608,55 +629,6 @@ app.post('/api', async (req, res) => {
 // Health check
 // =============================================================
 app.get('/health', (_req, res) => res.json({ status: 'ok' }));
-
-// =============================================================
-// Automatic daily cleanup — runs every 24 hours independently
-// Deletes appointments older than yesterday for every doctor
-// =============================================================
-async function runDailyCleanup() {
-  try {
-    const today = todayStr();
-
-    // Fetch all doctors to respect each one's working_days schedule
-    const { data: doctors, error } = await supabase
-      .from('doctors')
-      .select('id, first_name, last_name, working_days');
-
-    if (error) {
-      console.error('[Cleanup] Failed to fetch doctors:', error.message);
-      return;
-    }
-
-    let totalDeleted = 0;
-
-    for (const doc of doctors || []) {
-      const docName = `${doc.first_name} ${doc.last_name}`;
-      const wdSet   = parseWorkingDays(doc.working_days);
-      const cutoff  = previousWorkingDay(today, wdSet); // keep yesterday + today + future
-
-      const { count, error: delError } = await supabase
-        .from('appointments')
-        .delete({ count: 'exact' })
-        .eq('doctor_name', docName)
-        .lt('assigned_date', cutoff);
-
-      if (delError) {
-        console.error(`[Cleanup] Error deleting for ${docName}:`, delError.message);
-      } else if (count > 0) {
-        totalDeleted += count;
-        console.log(`[Cleanup] Deleted ${count} old appointment(s) for ${docName}`);
-      }
-    }
-
-    console.log(`[Cleanup] Done. Total deleted: ${totalDeleted} — ${nowStr()}`);
-  } catch (err) {
-    console.error('[Cleanup] Unexpected error:', err.message);
-  }
-}
-
-// Run once on startup, then every 24 hours
-runDailyCleanup();
-setInterval(runDailyCleanup, 24 * 60 * 60 * 1000);
 
 // =============================================================
 // Start
