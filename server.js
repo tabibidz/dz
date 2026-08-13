@@ -172,17 +172,8 @@ app.get('/api', async (req, res) => {
   if (action === 'get_regions') {
     const { data, error } = await supabase
       .from('regions')
-      .select('state, circle, municipality');
-    if (error) return fail(res, error.message);
-
-    // Sort by wilaya number (e.g. "01-Adrar" → 1, "48-Relizane" → 48)
-    data.sort((a, b) => {
-      const numA = parseInt(a.state) || 0;
-      const numB = parseInt(b.state) || 0;
-      if (numA !== numB) return numA - numB;
-      return (a.circle || '').localeCompare(b.circle || '') ||
-             (a.municipality || '').localeCompare(b.municipality || '');
-    });
+      .select('state, circle, municipality')
+      .order('state').order('circle').order('municipality');
     if (error) return fail(res, error.message);
     // Return as [[state, circle, municipality], ...] to match original format
     return res.json(data.map(r => [r.state, r.circle, r.municipality]));
@@ -333,14 +324,26 @@ app.post('/api', async (req, res) => {
   if (action === 'signup') {
     const email = String(data.email || '').trim().toLowerCase();
 
-    // Check duplicate
+    // Check duplicate email
     const { data: existing } = await supabase
       .from('doctors')
       .select('id')
       .eq('email', email)
       .limit(1);
     if (existing && existing.length)
-      return fail(res, 'This email is already registered. Please log in.');
+      return fail(res, 'This email or phone is already registered. Please log in.');
+
+    // Check duplicate phone
+    const phone = String(data.phone || '').trim();
+    if (phone) {
+      const { data: existingPhone } = await supabase
+        .from('doctors')
+        .select('id')
+        .eq('phone', phone)
+        .limit(1);
+      if (existingPhone && existingPhone.length)
+        return fail(res, 'This email or phone is already registered. Please log in.');
+    }
 
     const today    = todayStr();
     const trialEnd = addMonths(today, TRIAL_MONTHS);
