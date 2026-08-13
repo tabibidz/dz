@@ -577,6 +577,7 @@ function verifiedBadgeMarkup(size=15){
       </div>
     </div>
   </div>
+  <div id="docStep3ErrMsg" class="msg msg-error"></div>
   <div class="btn-group">
     <button id="btnRegister" class="btn-success" onclick="doctorSignUp()">Register</button>
   </div>
@@ -1192,12 +1193,18 @@ function doctorSignUp() {
   };
   if(!d.email||!d.password||!d.firstName||!d.circle) return alert('Please fill in required fields.');
 
+  hideMsg('docStep3ErrMsg');
   setBtnLoading('btnRegister', true, 'Creating account...');
   fetch(scriptURL,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(d)})
   .then(r=>r.json())
   .then(data=>{
     if(data.result==='success'){ showSignupSuccessModal(); }
-    else showMsg('emailErrMsg',(data.message||'Registration failed.'),'error');
+    else{
+      const errText = data.message || 'Registration failed.';
+      showMsg('docStep3ErrMsg', errText, 'error');
+      showStepById('doctor-signup-1');
+      showMsg('emailErrMsg', errText, 'error');
+    }
   })
   .catch(()=>alert('Network error. Please try again.'))
   .finally(()=>{ document.getElementById('btnRegister').disabled=false; document.getElementById('btnRegister').innerHTML='Register'; });
