@@ -99,6 +99,34 @@ function nextWorkingDay(dateStr, wdSet) {
   return d.toLocaleDateString('sv-SE', { timeZone: TZ });
 }
 
+/**
+ * Delete expired appointments for every doctor, independent of any doctor
+ * opening their dashboard. Each doctor's cutoff (previous working day) is
+ * computed from their own working_days schedule.
+ */
+async function cleanupOldAppointments() {
+  try {
+    const { data: allDocs, error } = await supabase.from('doctors').select('*');
+    if (error || !allDocs) return;
+
+    const today = todayStr();
+
+    for (const doc of allDocs) {
+      const docName = `${doc.first_name} ${doc.last_name}`.trim();
+      const wdSet   = parseWorkingDays(doc.working_days);
+      const cutoff  = previousWorkingDay(today, wdSet);
+
+      await supabase
+        .from('appointments')
+        .delete()
+        .eq('doctor_name', docName)
+        .lt('assigned_date', cutoff);
+    }
+  } catch (err) {
+    console.error('cleanupOldAppointments error:', err.message);
+  }
+}
+
 /** Build full subscription info object */
 function subscriptionInfo(subStart, subEnd, subDuration) {
   const duration = Number(subDuration) || 0;
@@ -553,6 +581,19 @@ app.post('/api', async (req, res) => {
     if (!doctorAvailable)
       return fail(res, 'This doctor is not currently accepting bookings.');
 
+    // Prevent double-booking: same phone number cannot book the same doctor
+    // again while a previous (not-yet-deleted) appointment still exists.
+    const phone = String(data.phone || '').trim();
+    if (phone) {
+      const { count: dupCount } = await supabase
+        .from('appointments')
+        .select('*', { count: 'exact', head: true })
+        .eq('doctor_name', wantedDoctor)
+        .eq('phone', phone);
+      if (dupCount && dupCount > 0)
+        return fail(res, 'A booking already exists with this phone', 'phone');
+    }
+
     const startDay = todayStr();
     const timeNow  = nowTime();
     let checkDay   = startDay;
@@ -624,4 +665,10 @@ app.get('/health', (_req, res) => res.json({ status: 'ok' }));
 // =============================================================
 // Start
 // =============================================================
-app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+app.listen(PORT, () => {
+  console.log(`Server running on port ${PORT}`);
+  // Run cleanup once at boot, then automatically every hour —
+  // no doctor needs to open the dashboard for this to happen.
+  cleanupOldAppointments();
+  setInterval(cleanupOldAppointments, 60 * 60 * 1000);
+});
