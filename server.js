@@ -184,7 +184,7 @@ app.get('/api', async (req, res) => {
     const { data, error } = await supabase
       .from('specialties')
       .select('name')
-      .order('name');
+      .order('id');
     if (error) return fail(res, error.message);
     return res.json(data.map(r => r.name));
   }
