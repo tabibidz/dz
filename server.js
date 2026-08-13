@@ -172,8 +172,17 @@ app.get('/api', async (req, res) => {
   if (action === 'get_regions') {
     const { data, error } = await supabase
       .from('regions')
-      .select('state, circle, municipality')
-      .order('state').order('circle').order('municipality');
+      .select('state, circle, municipality');
+    if (error) return fail(res, error.message);
+
+    // Sort by wilaya number (e.g. "01-Adrar" → 1, "48-Relizane" → 48)
+    data.sort((a, b) => {
+      const numA = parseInt(a.state) || 0;
+      const numB = parseInt(b.state) || 0;
+      if (numA !== numB) return numA - numB;
+      return (a.circle || '').localeCompare(b.circle || '') ||
+             (a.municipality || '').localeCompare(b.municipality || '');
+    });
     if (error) return fail(res, error.message);
     // Return as [[state, circle, municipality], ...] to match original format
     return res.json(data.map(r => [r.state, r.circle, r.municipality]));
@@ -183,8 +192,8 @@ app.get('/api', async (req, res) => {
   if (action === 'get_specialties') {
     const { data, error } = await supabase
       .from('specialties')
-      .select('id, name')
-      .order('id');
+      .select('name')
+      .order('name');
     if (error) return fail(res, error.message);
     return res.json(data.map(r => r.name));
   }
