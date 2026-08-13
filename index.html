@@ -466,9 +466,10 @@ function verifiedBadgeMarkup(size=15){
 
 <!-- ─── Doctor Login ───────────────────────────────────── -->
 <div id="doctor-login-section" class="step">
-  <h3>Welcome Back!</h3>
+  <h3><span id="loginTypedText"></span><span class="type-cursor">|</span></h3>
   <div style="max-width:400px;margin:auto">
     <div class="field"><input type="text" id="loginEmail" placeholder=" "><label for="loginEmail">Email or Phone</label></div>
+    <div style="height:12px"></div>
     <div class="field password-wrapper">
       <input type="password" id="loginPassword" placeholder=" ">
       <label for="loginPassword">Password</label>
@@ -714,7 +715,7 @@ function verifiedBadgeMarkup(size=15){
     </div>
     <div class="receipt-header">Account Created Successfully!</div>
     <p style="color:#64748b;font-size:14px;margin-bottom:4px">Welcome aboard. Your account is now active with a free 1-month trial period.</p>
-    <p style="color:#64748b;font-size:14px;margin-bottom:0">You can log in now using your email and password.</p>
+    <p style="color:#64748b;font-size:14px;margin-bottom:0">يمكنك تسجيل الدخول باستخدام <strong style="color:var(--ink)">البريد الإلكتروني</strong> أو <strong style="color:var(--ink)">رقم الهاتف</strong> مع كلمة المرور.</p>
     <button class="btn-primary" style="margin-top:22px" onclick="closeSignupSuccessModal()">Go to Login</button>
   </div>
 </div>
@@ -1513,6 +1514,27 @@ restoreDoctorSession();
 document.addEventListener('DOMContentLoaded',function(){
   var successIcon=document.getElementById('signupSuccessIcon');
   if(successIcon) successIcon.innerHTML=uiIcon('check',30);
+
+  // Typewriter effect for the login headline: Welcome Back!
+  var loginTypedEl=document.getElementById('loginTypedText');
+  if(loginTypedEl){
+    var loginText='Welcome Back!';
+    var li=0, lDeleting=false;
+    function loginTick(){
+      if(!lDeleting){
+        li++;
+        loginTypedEl.textContent=loginText.slice(0,li);
+        if(li>=loginText.length){ lDeleting=true; setTimeout(loginTick,1900); return; }
+        setTimeout(loginTick,80);
+      } else {
+        li--;
+        loginTypedEl.textContent=loginText.slice(0,li);
+        if(li<=0){ lDeleting=false; setTimeout(loginTick,500); return; }
+        setTimeout(loginTick,40);
+      }
+    }
+    loginTick();
+  }
 
   // Typewriter effect for the home headline: types out, pauses, erases, loops
   var typedEl=document.getElementById('heroTypedText');
