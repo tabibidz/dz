@@ -446,7 +446,6 @@ function verifiedBadgeMarkup(size=15){
       <select id="specialty"><option value="">Select Specialty</option></select>
     </div>
   </div>
-  <div id="step3ErrMsg" class="msg msg-error"></div>
   <div class="btn-group">
     <button id="btnSearch" class="btn-primary" onclick="fetchAvailableDoctors()">Search Doctors</button>
   </div>
@@ -502,8 +501,10 @@ function verifiedBadgeMarkup(size=15){
     <div class="field"><input type="text" id="docFirstName" placeholder=" "><label for="docFirstName">First Name</label></div>
     <div class="field"><input type="text" id="docLastName" placeholder=" "><label for="docLastName">Last Name</label></div>
     <div class="field-select" style="margin-top:6px"><label>Date of Birth</label><input type="date" id="docBirthDate"></div>
-    <div class="field"><input type="tel" id="docPhone" placeholder=" " inputmode="numeric" maxlength="10"><label for="docPhone">Phone</label></div>
-    <div id="phoneErrMsg" class="msg msg-error" style="grid-column:1 / -1"></div>
+    <div>
+      <div class="field"><input type="tel" id="docPhone" placeholder=" " inputmode="numeric" maxlength="10"><label for="docPhone">Phone</label></div>
+      <div id="phoneErrMsg" class="msg msg-error"></div>
+    </div>
     <div class="full-width">
       <div class="field"><input type="email" id="docEmail" placeholder=" "><label for="docEmail">Email</label></div>
       <div id="emailErrMsg" class="msg msg-error"></div>
@@ -1015,14 +1016,13 @@ function validateDocStep2() {
 
 // ── Fetch doctors ─────────────────────────────────────────
 function fetchAvailableDoctors() {
-  hideMsg('step3ErrMsg');
   const state=document.getElementById('state').value;
   const circle=document.getElementById('circle').value;
   const mun=document.getElementById('municipality').value;
   const type=document.getElementById('doctorType').value;
   const spec=document.getElementById('specialty').value||'';
-  if(!state||!circle||!mun) return showFieldMsg('step3ErrMsg','Please select State, Circle and Municipality.');
-  if(type==='Specialist'&&!spec) return showFieldMsg('step3ErrMsg','Please select a specialty.');
+  if(!state||!circle||!mun) return;
+  if(type==='Specialist'&&!spec) return;
 
   setBtnLoading('btnSearch', true, 'Searching...');
   fetch(`${scriptURL}?action=get_doctors&state=${encodeURIComponent(state)}&circle=${encodeURIComponent(circle)}&municipality=${encodeURIComponent(mun)}&type=${encodeURIComponent(type)}&specialty=${encodeURIComponent(spec)}`)
