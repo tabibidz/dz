@@ -465,7 +465,7 @@ function verifiedBadgeMarkup(size=15){
 
 <!-- ─── Doctor Login ───────────────────────────────────── -->
 <div id="doctor-login-section" class="step">
-  <h3>Welcome Back!</h3>
+  <h3><span id="loginTypedText"></span><span class="type-cursor">|</span></h3>
   <div style="max-width:400px;margin:auto">
     <div class="field"><input type="text" id="loginEmail" placeholder=" "><label for="loginEmail">Email or Phone</label></div>
     <div style="height:10px"></div>
@@ -841,9 +841,33 @@ function showStepById(id) {
   document.querySelectorAll('.step').forEach(e=>e.classList.remove('active'));
   document.getElementById(id).classList.add('active');
 }
+let loginTypewriterStarted = false;
+function startLoginTypewriter() {
+  if (loginTypewriterStarted) return;
+  loginTypewriterStarted = true;
+  var typedEl = document.getElementById('loginTypedText');
+  if (!typedEl) return;
+  var text = 'Welcome Back!';
+  var i = 0, deleting = false;
+  function tick() {
+    if (!deleting) {
+      i++;
+      typedEl.textContent = text.slice(0, i);
+      if (i >= text.length) { deleting = true; setTimeout(tick, 5000); return; }
+      setTimeout(tick, 45);
+    } else {
+      i--;
+      typedEl.textContent = text.slice(0, i);
+      if (i <= 0) { deleting = false; setTimeout(tick, 500); return; }
+      setTimeout(tick, 25);
+    }
+  }
+  tick();
+}
 function showLoginSection(mode) {
   document.querySelectorAll('.step').forEach(e=>e.classList.remove('active'));
   document.getElementById('doctor-login-section').classList.add('active');
+  startLoginTypewriter();
   mode = mode || 'push';
   if (mode === 'push') setRoute('login', false);
   else if (mode === 'replace') setRoute('login', true);
