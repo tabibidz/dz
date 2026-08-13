@@ -466,7 +466,7 @@ function verifiedBadgeMarkup(size=15){
 
 <!-- ─── Doctor Login ───────────────────────────────────── -->
 <div id="doctor-login-section" class="step">
-  <h3>Welcome Back!</h3>
+  <h3><span id="loginTypedText"></span><span class="type-cursor">|</span></h3>
   <div style="max-width:400px;margin:auto">
     <div class="field"><input type="text" id="loginEmail" placeholder=" "><label for="loginEmail">Email or Phone</label></div>
     <div style="height:10px"></div>
@@ -1514,6 +1514,27 @@ restoreDoctorSession();
 document.addEventListener('DOMContentLoaded',function(){
   var successIcon=document.getElementById('signupSuccessIcon');
   if(successIcon) successIcon.innerHTML=uiIcon('check',30);
+
+  // Typewriter effect for Welcome Back! on login page
+  var loginTypedEl=document.getElementById('loginTypedText');
+  if(loginTypedEl){
+    var loginText='Welcome Back!';
+    var li=0, lDeleting=false;
+    function loginTick(){
+      if(!lDeleting){
+        li++;
+        loginTypedEl.textContent=loginText.slice(0,li);
+        if(li>=loginText.length){ lDeleting=true; setTimeout(loginTick,1900); return; }
+        setTimeout(loginTick,80);
+      } else {
+        li--;
+        loginTypedEl.textContent=loginText.slice(0,li);
+        if(li<=0){ lDeleting=false; setTimeout(loginTick,500); return; }
+        setTimeout(loginTick,40);
+      }
+    }
+    loginTick();
+  }
 
   // Typewriter effect for the home headline: types out, pauses, erases, loops
   var typedEl=document.getElementById('heroTypedText');
