@@ -183,8 +183,8 @@ app.get('/api', async (req, res) => {
   if (action === 'get_specialties') {
     const { data, error } = await supabase
       .from('specialties')
-      .select('name')
-      .order('name');
+      .select('id, name')
+      .order('id');
     if (error) return fail(res, error.message);
     return res.json(data.map(r => r.name));
   }
@@ -540,27 +540,6 @@ app.post('/api', async (req, res) => {
 
     if (!doctorAvailable)
       return fail(res, 'This doctor is not currently accepting bookings.');
-
-    // ── Duplicate phone check ─────────────────────────────
-    // Block re-booking if this phone already has an active (non-expired)
-    // appointment with the same doctor that hasn't been auto-deleted yet.
-    if (data.phone) {
-      const today0 = todayStr();
-      const wdSet0 = doc ? parseWorkingDays(doc.working_days) : new Set([0,1,2,3,4,5,6]);
-      const cutoff0 = previousWorkingDay(today0, wdSet0); // same cutoff used by auto-cleanup
-
-      const { data: existing } = await supabase
-        .from('appointments')
-        .select('id, assigned_date')
-        .eq('doctor_name', wantedDoctor)
-        .eq('phone', String(data.phone).trim())
-        .gte('assigned_date', cutoff0)
-        .limit(1);
-
-      if (existing && existing.length) {
-        return fail(res, 'لديك موعد محجوز مسبقاً مع هذا الطبيب. يُرجى الانتظار حتى انتهاء موعدك الحالي.');
-      }
-    }
 
     const startDay = todayStr();
     const timeNow  = nowTime();
