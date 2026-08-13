@@ -503,6 +503,7 @@ function verifiedBadgeMarkup(size=15){
     <div class="field"><input type="text" id="docLastName" placeholder=" "><label for="docLastName">Last Name</label></div>
     <div class="field-select" style="margin-top:6px"><label>Date of Birth</label><input type="date" id="docBirthDate"></div>
     <div class="field"><input type="tel" id="docPhone" placeholder=" " inputmode="numeric" maxlength="10"><label for="docPhone">Phone</label></div>
+    <div id="phoneErrMsg" class="msg msg-error" style="grid-column:1 / -1"></div>
     <div class="full-width">
       <div class="field"><input type="email" id="docEmail" placeholder=" "><label for="docEmail">Email</label></div>
       <div id="emailErrMsg" class="msg msg-error"></div>
@@ -1175,6 +1176,7 @@ function doctorSignUp() {
   const pass=document.getElementById('docPassword').value;
   if(pass!==document.getElementById('docConfirmPassword').value) return alert('Passwords do not match!');
   hideMsg('emailErrMsg');
+  hideMsg('phoneErrMsg');
 
   const d={
     action:'signup',
@@ -1203,7 +1205,9 @@ function doctorSignUp() {
       const errText = data.message || 'Registration failed.';
       showMsg('docStep3ErrMsg', errText, 'error');
       showStepById('doctor-signup-1');
-      showMsg('emailErrMsg', errText, 'error');
+      if(data.field==='phone') showMsg('phoneErrMsg', errText, 'error');
+      else if(data.field==='email') showMsg('emailErrMsg', errText, 'error');
+      else showMsg('emailErrMsg', errText, 'error');
     }
   })
   .catch(()=>alert('Network error. Please try again.'))
