@@ -160,7 +160,7 @@ function parseBody(req) {
 
 // ── Response helpers ──────────────────────────────────────────
 const ok   = (res, obj)  => res.json({ result: 'success', ...obj });
-const fail = (res, msg)  => res.json({ result: 'error', message: msg });
+const fail = (res, msg, field)  => res.json({ result: 'error', message: msg, field: field || null });
 
 // =============================================================
 // GET /api  — read-only actions
@@ -331,7 +331,7 @@ app.post('/api', async (req, res) => {
       .eq('email', email)
       .limit(1);
     if (existing && existing.length)
-      return fail(res, 'Email or Phone is already registered.');
+      return fail(res, 'Email is already registered.', 'email');
 
     // Check duplicate phone
     const phone = String(data.phone || '').trim();
@@ -342,7 +342,7 @@ app.post('/api', async (req, res) => {
         .eq('phone', phone)
         .limit(1);
       if (existingPhone && existingPhone.length)
-        return fail(res, 'Email or Phone is already registered.');
+        return fail(res, 'Phone is already registered.', 'phone');
     }
 
     const today    = todayStr();
