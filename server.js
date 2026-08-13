@@ -331,7 +331,7 @@ app.post('/api', async (req, res) => {
       .eq('email', email)
       .limit(1);
     if (existing && existing.length)
-      return fail(res, 'This email or phone is already registered. Please log in.');
+      return fail(res, 'Email or Phone is already registered.');
 
     // Check duplicate phone
     const phone = String(data.phone || '').trim();
@@ -342,7 +342,7 @@ app.post('/api', async (req, res) => {
         .eq('phone', phone)
         .limit(1);
       if (existingPhone && existingPhone.length)
-        return fail(res, 'This email or phone is already registered. Please log in.');
+        return fail(res, 'Email or Phone is already registered.');
     }
 
     const today    = todayStr();
