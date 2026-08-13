@@ -410,7 +410,7 @@ function verifiedBadgeMarkup(size=15){
     <div class="field"><input type="text" id="lastName" placeholder=" "><label for="lastName">Last Name</label></div>
     <div class="field"><input type="tel" id="phone" placeholder=" " inputmode="numeric" maxlength="10"><label for="phone">Phone</label></div>
   </div>
-  <div id="step1ErrMsg" class="msg msg-error"></div>
+  <div id="step1ErrMsg" class="msg msg-error" style="margin-top:2px"></div>
   <div class="btn-group">
     <button class="btn-primary" onclick="validateStep1()">Next</button>
   </div>
@@ -424,7 +424,7 @@ function verifiedBadgeMarkup(size=15){
     <div class="full-width field-select"><label>Circle (Daïra)</label><select id="circle" onchange="updateMunicipalities()"><option value="">Select Circle</option></select></div>
     <div class="full-width field-select"><label>Municipality (Baladiya)</label><select id="municipality"><option value="">Select Municipality</option></select></div>
   </div>
-  <div id="step2ErrMsg" class="msg msg-error"></div>
+  <div id="step2ErrMsg" class="msg msg-error" style="margin-top:2px"></div>
   <div class="btn-group">
     <button class="btn-primary" onclick="validateStep2()">Next</button>
   </div>
@@ -540,7 +540,7 @@ function verifiedBadgeMarkup(size=15){
 </span>
     </div>
   </div>
-  <div id="docStep1ErrMsg" class="msg msg-error"></div>
+  <div id="docStep1ErrMsg" class="msg msg-error" style="margin-top:2px"></div>
   <div class="btn-group">
     <button class="btn-primary" onclick="validateDocStep1()">Next</button>
   </div>
@@ -555,7 +555,7 @@ function verifiedBadgeMarkup(size=15){
     <div class="full-width field-select"><label>Municipality (Baladiya)</label><select id="docMunicipality"><option value="">Select Municipality</option></select></div>
     <div class="full-width field"><input type="text" id="docAddress" placeholder=" "><label for="docAddress">Clinic Address</label></div>
   </div>
-  <div id="docStep2ErrMsg" class="msg msg-error"></div>
+  <div id="docStep2ErrMsg" class="msg msg-error" style="margin-top:2px"></div>
   <div class="btn-group">
     <button class="btn-primary" onclick="validateDocStep2()">Next</button>
   </div>
@@ -1133,6 +1133,11 @@ function submitBooking() {
   .then(data=>{
     if(data.result==='success') {
       showReceipt(bk, data.assignedDate, data.queueNumber);
+    } else if(data.field==='phone') {
+      nextStep(1);
+      showMsg('step1ErrMsg', data.message||'This phone number already has a booking.', 'error');
+      const phoneEl = document.getElementById('phone');
+      if(phoneEl) phoneEl.focus();
     } else {
       alert('Booking failed: '+(data.message||'Unknown error'));
     }
