@@ -112,14 +112,13 @@ async function cleanupOldAppointments() {
     const today = todayStr();
 
     for (const doc of allDocs) {
-      const docName = `${doc.first_name} ${doc.last_name}`.trim();
       const wdSet   = parseWorkingDays(doc.working_days);
       const cutoff  = previousWorkingDay(today, wdSet);
 
       await supabase
         .from('appointments')
         .delete()
-        .eq('doctor_name', docName)
+        .eq('doctor_id', doc.id)
         .lt('assigned_date', cutoff);
     }
   } catch (err) {
@@ -241,6 +240,7 @@ app.get('/api', async (req, res) => {
       const info = subscriptionInfo(sub.start, sub.end, sub.duration);
       const isActive = doc.is_active && info.subscriptionStatus !== 'expired';
       result.push({
+        id:         doc.id,
         fullName:   `${doc.first_name} ${doc.last_name}`,
         address:    doc.address,
         municipality: doc.municipality,
@@ -281,13 +281,13 @@ app.get('/api', async (req, res) => {
     await supabase
       .from('appointments')
       .delete()
-      .eq('doctor_name', docName)
+      .eq('doctor_id', doc.id)
       .lt('assigned_date', cutoff);
 
     const { data: appts } = await supabase
       .from('appointments')
       .select('*')
-      .eq('doctor_name', docName)
+      .eq('doctor_id', doc.id)
       .gte('assigned_date', cutoff)
       .order('assigned_date')
       .order('queue_number');
@@ -543,52 +543,60 @@ app.post('/api', async (req, res) => {
 
   // ── book ──────────────────────────────────────────────────
   if (action === 'book') {
-    const wantedDoctor = String(data.doctor || '').trim();
+    const wantedDoctor  = String(data.doctor || '').trim();
+    const wantedDoctorId = data.doctorId != null ? Number(data.doctorId) : null;
 
-    // Fetch doctor info
-    // fullName is stored as first_name + ' ' + last_name
-    const { data: allDocs } = await supabase
-      .from('doctors')
-      .select('*');
-
-    const doc = (allDocs || []).find(d =>
-      `${d.first_name} ${d.last_name}`.trim() === wantedDoctor
-    );
+    // Identify the doctor by id whenever the frontend sent one — this is the
+    // only reliable way to distinguish two different doctors who happen to
+    // share the exact same name. Fall back to name matching only for older
+    // clients that haven't been updated to send doctorId yet.
+    let doc = null;
+    if (wantedDoctorId != null && !Number.isNaN(wantedDoctorId)) {
+      const { data: docById } = await supabase
+        .from('doctors')
+        .select('*')
+        .eq('id', wantedDoctorId)
+        .limit(1);
+      doc = docById && docById[0] ? docById[0] : null;
+    }
+    if (!doc && wantedDoctor) {
+      const { data: allDocs } = await supabase.from('doctors').select('*');
+      const matches = (allDocs || []).filter(d =>
+        `${d.first_name} ${d.last_name}`.trim() === wantedDoctor
+      );
+      if (matches.length > 1) {
+        // Ambiguous: same name exists more than once and we have no id to
+        // disambiguate. Refuse rather than silently booking the wrong doctor.
+        return fail(res, 'Multiple doctors share this name — please reselect the doctor.', 'doctor');
+      }
+      doc = matches[0] || null;
+    }
 
     if (!doc) {
-      // Doctor not found — still allow booking (no hard block)
+      return fail(res, 'Doctor not found.', 'doctor');
     }
 
-    let dailyLimit  = 40;
-    let wdSet       = new Set([0, 1, 2, 3, 4, 5, 6]);
-    let workStart   = '08:00';
-    let workEnd     = '17:00';
-    let doctorAvailable = true;
+    const dailyLimit = doc.daily_limit || 40;
+    const wdSet      = parseWorkingDays(doc.working_days);
+    const workStart  = doc.work_start || '08:00';
+    const workEnd    = doc.work_end   || '17:00';
 
-    if (doc) {
-      dailyLimit = doc.daily_limit || 40;
-      wdSet      = parseWorkingDays(doc.working_days);
-      workStart  = doc.work_start || '08:00';
-      workEnd    = doc.work_end   || '17:00';
-
-      const sub  = await ensureTrial(doc);
-      const info = subscriptionInfo(sub.start, sub.end, sub.duration);
-      if (!doc.is_active || info.subscriptionStatus === 'expired') {
-        doctorAvailable = false;
-      }
-    }
+    const sub  = await ensureTrial(doc);
+    const info = subscriptionInfo(sub.start, sub.end, sub.duration);
+    const doctorAvailable = doc.is_active && info.subscriptionStatus !== 'expired';
 
     if (!doctorAvailable)
       return fail(res, 'This doctor is not currently accepting bookings.');
 
-    // Prevent double-booking: same phone number cannot book the same doctor
-    // again while a previous (not-yet-deleted) appointment still exists.
+    // Prevent double-booking: same phone number cannot book this exact
+    // doctor (matched by id, never by name) again while a previous
+    // (not-yet-deleted) appointment still exists.
     const phone = String(data.phone || '').trim();
     if (phone) {
       const { count: dupCount } = await supabase
         .from('appointments')
         .select('*', { count: 'exact', head: true })
-        .eq('doctor_name', wantedDoctor)
+        .eq('doctor_id', doc.id)
         .eq('phone', phone);
       if (dupCount && dupCount > 0)
         return fail(res, 'A booking already exists with this phone', 'phone');
@@ -615,7 +623,7 @@ app.post('/api', async (req, res) => {
         const { count: cnt } = await supabase
           .from('appointments')
           .select('*', { count: 'exact', head: true })
-          .eq('doctor_name', wantedDoctor)
+          .eq('doctor_id', doc.id)
           .eq('assigned_date', checkDay);
         count = cnt || 0;
       }
@@ -635,17 +643,19 @@ app.post('/api', async (req, res) => {
     const { count: existingCount } = await supabase
       .from('appointments')
       .select('*', { count: 'exact', head: true })
-      .eq('doctor_name', wantedDoctor)
+      .eq('doctor_id', doc.id)
       .eq('assigned_date', checkDay);
 
     const queueNumber = (existingCount || 0) + 1;
+    const doctorFullName = `${doc.first_name} ${doc.last_name}`.trim();
 
     const { error: insertError } = await supabase.from('appointments').insert({
       first_name:   data.firstName || '',
       last_name:    data.lastName  || '',
       phone:        data.phone     || '',
       state:        data.state     || '',
-      doctor_name:  wantedDoctor,
+      doctor_id:    doc.id,
+      doctor_name:  doctorFullName, // kept for display/back-compat only — never used for matching
       assigned_date: checkDay,
       queue_number: queueNumber
     });
