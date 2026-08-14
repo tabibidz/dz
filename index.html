@@ -732,6 +732,7 @@ let currentDoctorEmail = '';
 let fetchedDoctors = []; // آخر قائمة أطباء تم جلبها (لأجل البحث)
 let allAppointments = []; // كل مواعيد الطبيب
 let selectedDoctorName = '';
+let selectedDoctorId = null;
 let selectedDoctorActive = true;
 let selectedDoctorSpecialty = '';
 let selectedDoctorType = '';
@@ -1072,7 +1073,7 @@ function renderDoctorsList(list) {
           <strong>${doc.fullName}</strong> ${doc.isVerified?verifiedBadgeMarkup(15):''} <span style="font-size:13px;color:#64748b">(${doc.type}${doc.specialty?' - '+doc.specialty:''})</span><br>
           <small style="color:#64748b;display:inline-flex;align-items:center;gap:4px">${uiIcon('pin',14)}${doc.address||'No address'}</small>
         </div>
-        <button class="btn-success select-btn" style="width:auto;padding:9px 18px" onclick="selectDoctor('${doc.fullName}',true,this)">Select</button>
+        <button class="btn-success select-btn" style="width:auto;padding:9px 18px" onclick="selectDoctor('${doc.fullName}',true,this,${doc.id})">Select</button>
       </div>`;
     } else {
       cont.innerHTML+=`
@@ -1098,10 +1099,11 @@ function filterDoctorsList() {
   renderDoctorsList(filtered);
 }
 
-function selectDoctor(name, active, btn) {
+function selectDoctor(name, active, btn, id) {
   selectedDoctorName = name;
+  selectedDoctorId = id;
   selectedDoctorActive = active;
-  const doc = fetchedDoctors.find(d=>d.fullName===name);
+  const doc = id != null ? fetchedDoctors.find(d=>d.id===id) : fetchedDoctors.find(d=>d.fullName===name);
   selectedDoctorSpecialty = doc ? (doc.specialty || '') : '';
   selectedDoctorType = doc ? (doc.type || '') : '';
   document.getElementById('btnConfirm').disabled = !active;
@@ -1122,6 +1124,7 @@ function submitBooking() {
     phone:     document.getElementById('phone').value,
     state:     document.getElementById('state').value,
     doctor:    selectedDoctorName,
+    doctorId:  selectedDoctorId,
     specialty: selectedDoctorSpecialty,
     type:      selectedDoctorType
   };
