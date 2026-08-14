@@ -7,6 +7,9 @@
 require('dotenv').config();
 const express  = require('express');
 const cors     = require('cors');
+const bcrypt   = require('bcryptjs');
+const jwt      = require('jsonwebtoken');
+const rateLimit = require('express-rate-limit');
 const { createClient } = require('@supabase/supabase-js');
 
 // ── Supabase client (server-side, uses service_role key) ─────
@@ -18,8 +21,25 @@ const supabase = createClient(
 const app  = express();
 const PORT = process.env.PORT || 3000;
 
+// ── JWT secret (REQUIRED — do not fall back to a hard-coded value) ──
+// Set this in your Render environment variables to a long random string,
+// e.g. `openssl rand -hex 32`.
+const JWT_SECRET = process.env.JWT_SECRET;
+if (!JWT_SECRET) {
+  console.error('FATAL: JWT_SECRET environment variable is not set.');
+  process.exit(1);
+}
+const TOKEN_TTL = '30d';
+
 // ── CORS ──────────────────────────────────────────────────────
+// NOTE: leaving ALLOWED_ORIGIN unset makes the API callable from ANY
+// website. Since several endpoints return patient PII (name/phone) and
+// accept doctor logins, set ALLOWED_ORIGIN in production to your real
+// frontend origin (e.g. https://your-site.com).
 const allowedOrigin = process.env.ALLOWED_ORIGIN || '*';
+if (allowedOrigin === '*') {
+  console.warn('WARNING: ALLOWED_ORIGIN is not set — CORS is open to all origins.');
+}
 app.use(cors({
   origin: allowedOrigin === '*' ? '*' : (origin, cb) => {
     if (!origin || origin === allowedOrigin) cb(null, true);
@@ -29,6 +49,48 @@ app.use(cors({
 
 app.use(express.json());
 app.use(express.text({ type: 'text/plain' }));   // Apps-Script-style POST bodies
+
+// ── Rate limiting ────────────────────────────────────────────
+// Slows down brute-force attacks against login/signup/activation-code
+// guessing and mass-booking abuse. Tune windowMs/max to your traffic.
+const loginLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 20,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { result: 'error', message: 'Too many attempts. Please try again later.' }
+});
+const writeLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 60,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { result: 'error', message: 'Too many requests. Please try again later.' }
+});
+
+// ── Auth helpers ──────────────────────────────────────────────
+function signDoctorToken(doc) {
+  return jwt.sign({ sub: doc.id, email: doc.email }, JWT_SECRET, { expiresIn: TOKEN_TTL });
+}
+
+/**
+ * Requires a valid `Authorization: Bearer <token>` header issued at login.
+ * Attaches req.doctorId / req.doctorEmail from the verified token — NEVER
+ * trust a doctor identity that arrives only as a plain request parameter.
+ */
+function requireDoctorAuth(req, res, next) {
+  const header = req.headers.authorization || '';
+  const token = header.startsWith('Bearer ') ? header.slice(7) : null;
+  if (!token) return fail(res, 'Not authenticated.');
+  try {
+    const payload = jwt.verify(token, JWT_SECRET);
+    req.doctorId = payload.sub;
+    req.doctorEmail = payload.email;
+    next();
+  } catch {
+    return fail(res, 'Session expired or invalid. Please log in again.');
+  }
+}
 
 // ── Helpers ───────────────────────────────────────────────────
 const TZ = 'Africa/Algiers';   // UTC+1, no DST
@@ -254,13 +316,25 @@ app.get('/api', async (req, res) => {
     return res.json(result);
   }
 
-  // ── doctor dashboard (by email) ──────────────────────────
-  if (req.query.doctorEmail) {
-    const email = req.query.doctorEmail.trim();
+  // ── doctor dashboard (requires a valid session token) ─────
+  // SECURITY: this used to trust `?doctorEmail=` on its own, which let
+  // anyone who knew (or guessed) a doctor's email read that doctor's full
+  // patient list (names + phone numbers) with no password. It now requires
+  // the JWT issued at login, and the doctor identity comes from the
+  // verified token — the doctorEmail query param, if present, is ignored.
+  if (req.query.doctorEmail !== undefined) {
+    const header = req.headers.authorization || '';
+    const token = header.startsWith('Bearer ') ? header.slice(7) : null;
+    let doctorId;
+    try {
+      doctorId = jwt.verify(token, JWT_SECRET).sub;
+    } catch {
+      return fail(res, 'Not authenticated. Please log in again.');
+    }
     const { data: docs, error } = await supabase
       .from('doctors')
       .select('*')
-      .eq('email', email)
+      .eq('id', doctorId)
       .limit(1);
     if (error || !docs.length) return res.json({ doctorName: null });
 
@@ -321,6 +395,7 @@ app.get('/api', async (req, res) => {
 
     return res.json({
       doctorName:           docName,
+      doctorEmail:          doc.email,
       dailyLimit:           doc.daily_limit,
       isActive,
       isVerified:           doc.verified,
@@ -344,8 +419,19 @@ app.get('/api', async (req, res) => {
 // =============================================================
 // POST /api  — write actions
 // =============================================================
-app.post('/api', async (req, res) => {
+// Pick a rate limiter based on the action before the main handler runs,
+// so brute-force login attempts / mass signups / booking-spam all get
+// throttled per IP without restructuring the handler below.
+function apiRateLimiter(req, res, next) {
   const data = parseBody(req);
+  req._parsedBody = data;
+  if (data.action === 'login') return loginLimiter(req, res, next);
+  if (data.action === 'signup' || data.action === 'book') return writeLimiter(req, res, next);
+  return next();
+}
+
+app.post('/api', apiRateLimiter, async (req, res) => {
+  const data = req._parsedBody || parseBody(req);
   const { action } = data;
 
   // ── signup ────────────────────────────────────────────────
@@ -376,13 +462,19 @@ app.post('/api', async (req, res) => {
     const today    = todayStr();
     const trialEnd = addMonths(today, TRIAL_MONTHS);
 
+    const rawPassword = String(data.password || '');
+    if (rawPassword.length < 8) return fail(res, 'Password must be at least 8 characters.', 'password');
+    // SECURITY: never store the plain password — hash it. bcrypt already
+    // salts each hash, so identical passwords produce different hashes.
+    const passwordHash = await bcrypt.hash(rawPassword, 12);
+
     const { error } = await supabase.from('doctors').insert({
       first_name:           data.firstName   || '',
       last_name:            data.lastName    || '',
       phone:                data.phone       || '',
       birth_date:           data.birthDate   || null,
       email,
-      password:             data.password    || '',
+      password:             passwordHash,
       state:                data.state       || '',
       circle:               data.circle      || '',
       municipality:         data.municipality|| '',
@@ -408,23 +500,51 @@ app.post('/api', async (req, res) => {
   if (action === 'login') {
     const identifier = String(data.email || '').trim();
     const password   = String(data.password || '').trim();
+    if (!identifier || !password) return fail(res, 'Invalid email or password');
 
-    const { data: docs } = await supabase
-      .from('doctors')
-      .select('*')
-      .or(`email.eq.${identifier},phone.eq.${identifier}`)
-      .limit(1);
+    // SECURITY: the identifier used to be concatenated straight into a
+    // PostgREST `.or()` filter string (`email.eq.${identifier},...`).
+    // PostgREST filter syntax treats characters like `,`, `.`, `(`, `)`
+    // as operators, so a crafted identifier could alter the filter's
+    // meaning (a filter-injection issue, distinct from raw SQL injection
+    // but with a similar impact — potentially matching rows it shouldn't).
+    // Two separate, safely-parameterized .eq() lookups avoid that entirely.
+    const [byEmail, byPhone] = await Promise.all([
+      supabase.from('doctors').select('*').eq('email', identifier.toLowerCase()).limit(1),
+      supabase.from('doctors').select('*').eq('phone', identifier).limit(1)
+    ]);
+    const docs = (byEmail.data && byEmail.data.length) ? byEmail.data
+               : (byPhone.data && byPhone.data.length) ? byPhone.data
+               : [];
 
-    if (!docs || !docs.length) return fail(res, 'Invalid email or password');
+    if (!docs.length) return fail(res, 'Invalid email or password');
     const doc = docs[0];
-    if (doc.password.trim() !== password) return fail(res, 'Invalid email or password');
+
+    // SECURITY: passwords are now hashed with bcrypt (see signup). Accounts
+    // created before this fix will have a plain-text password already in
+    // the DB — the fallback below verifies those once and immediately
+    // re-hashes them, so every account is migrated to a bcrypt hash the
+    // first time its owner logs in again.
+    let passwordOk;
+    if (doc.password && doc.password.startsWith('$2')) {
+      passwordOk = await bcrypt.compare(password, doc.password);
+    } else {
+      passwordOk = (doc.password || '').trim() === password;
+      if (passwordOk) {
+        const newHash = await bcrypt.hash(password, 12);
+        await supabase.from('doctors').update({ password: newHash }).eq('id', doc.id);
+      }
+    }
+    if (!passwordOk) return fail(res, 'Invalid email or password');
 
     const sub  = await ensureTrial(doc);
     const info = subscriptionInfo(sub.start, sub.end, sub.duration);
     const isActive = doc.is_active && info.subscriptionStatus !== 'expired';
+    const token = signDoctorToken(doc);
 
     return ok(res, {
       doctor: {
+        token,
         fullName:             `${doc.first_name} ${doc.last_name}`,
         email:                doc.email,
         dailyLimit:           doc.daily_limit,
@@ -446,7 +566,16 @@ app.post('/api', async (req, res) => {
 
   // ── update_settings ───────────────────────────────────────
   if (action === 'update_settings') {
-    const email = String(data.email || '').trim();
+    // SECURITY: this used to trust whatever `email` the client sent, so
+    // anyone could POST { action:'update_settings', email:'other-doctor@x' }
+    // and silently change another doctor's hours/capacity/active status.
+    // The doctor is now identified from the verified session token only.
+    const header = req.headers.authorization || '';
+    const token = header.startsWith('Bearer ') ? header.slice(7) : null;
+    let doctorId;
+    try { doctorId = jwt.verify(token, JWT_SECRET).sub; }
+    catch { return fail(res, 'Not authenticated. Please log in again.'); }
+
     const wdStr = Array.isArray(data.workingDays)
       ? data.workingDays.join(',')
       : String(data.workingDays || '0,1,2,3,4,5,6');
@@ -457,7 +586,7 @@ app.post('/api', async (req, res) => {
       working_days: wdStr,
       work_start:   data.workStart || '08:00',
       work_end:     data.workEnd   || '17:00'
-    }).eq('email', email);
+    }).eq('id', doctorId);
 
     if (error) return fail(res, error.message);
     return ok(res);
@@ -465,10 +594,18 @@ app.post('/api', async (req, res) => {
 
   // ── redeem_subscription_code ──────────────────────────────
   if (action === 'redeem_subscription_code') {
-    const code  = String(data.code || '').trim().toUpperCase();
-    const email = String(data.email || '').trim();
-    if (!code)  return fail(res, 'Please enter an activation code.');
-    if (!email) return fail(res, 'Doctor email required.');
+    // SECURITY: previously identified the doctor purely by a client-sent
+    // `email`, so anyone who knew a doctor's email could redeem a stolen
+    // or guessed activation code onto that doctor's account. Identity now
+    // comes from the verified session token.
+    const header = req.headers.authorization || '';
+    const token = header.startsWith('Bearer ') ? header.slice(7) : null;
+    let doctorId;
+    try { doctorId = jwt.verify(token, JWT_SECRET).sub; }
+    catch { return fail(res, 'Not authenticated. Please log in again.'); }
+
+    const code = String(data.code || '').trim().toUpperCase();
+    if (!code) return fail(res, 'Please enter an activation code.');
 
     // subscription_codes has ONE row (id=1) with three array columns —
     // find which duration column this code belongs to
@@ -492,11 +629,11 @@ app.post('/api', async (req, res) => {
     }
     if (!matchedCol) return fail(res, 'Invalid or already-used activation code.');
 
-    // Find doctor
+    // Find doctor (by authenticated id, not a client-supplied email)
     const { data: docs } = await supabase
       .from('doctors')
       .select('*')
-      .eq('email', email)
+      .eq('id', doctorId)
       .limit(1);
     if (!docs || !docs.length) return fail(res, 'Doctor not found.');
     const doc = docs[0];
@@ -525,7 +662,7 @@ app.post('/api', async (req, res) => {
     await supabase.from('used_subscription_codes').insert({
       code,
       duration_months: durationMonths,
-      used_by:  email,
+      used_by:  doc.email,
       used_date: nowStr()
     });
 
