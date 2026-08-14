@@ -1244,7 +1244,7 @@ function closeSignupSuccessModal(){ document.getElementById('signupSuccessModal'
 
 // SECURITY: patient-supplied text (name, phone) and other values from the
 // API are inserted into the page with innerHTML in several places below.
-// Without escaping, a booking made with a name like <script>...</script>
+// Without escaping, a booking made with a name like <script>alert(1)<\/script>
 // would execute inside the doctor's dashboard the next time they viewed
 // their appointment list (a stored XSS attack). Always pass such values
 // through escapeHtml() before inserting them into an HTML string.
