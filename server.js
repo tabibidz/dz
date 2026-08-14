@@ -658,9 +658,12 @@ app.post('/api', async (req, res) => {
 });
 
 // =============================================================
-// Health check
+// Health check / Keep-alive (for UptimeRobot & similar pingers)
+// No DB access, no side effects — pure liveness check.
 // =============================================================
-app.get('/health', (_req, res) => res.json({ status: 'ok' }));
+app.get(['/', '/health'], (_req, res) => {
+  res.status(200).type('text/plain').send('Site is running');
+});
 
 // =============================================================
 // Start
