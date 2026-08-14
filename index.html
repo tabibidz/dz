@@ -732,7 +732,6 @@ let currentDoctorEmail = '';
 let fetchedDoctors = []; // آخر قائمة أطباء تم جلبها (لأجل البحث)
 let allAppointments = []; // كل مواعيد الطبيب
 let selectedDoctorName = '';
-let selectedDoctorId = null;
 let selectedDoctorActive = true;
 let selectedDoctorSpecialty = '';
 let selectedDoctorType = '';
@@ -1073,7 +1072,7 @@ function renderDoctorsList(list) {
           <strong>${doc.fullName}</strong> ${doc.isVerified?verifiedBadgeMarkup(15):''} <span style="font-size:13px;color:#64748b">(${doc.type}${doc.specialty?' - '+doc.specialty:''})</span><br>
           <small style="color:#64748b;display:inline-flex;align-items:center;gap:4px">${uiIcon('pin',14)}${doc.address||'No address'}</small>
         </div>
-        <button class="btn-success select-btn" style="width:auto;padding:9px 18px" onclick="selectDoctor('${doc.fullName}',true,this,${doc.id})">Select</button>
+        <button class="btn-success select-btn" style="width:auto;padding:9px 18px" onclick="selectDoctor('${doc.fullName}',true,this)">Select</button>
       </div>`;
     } else {
       cont.innerHTML+=`
@@ -1099,11 +1098,10 @@ function filterDoctorsList() {
   renderDoctorsList(filtered);
 }
 
-function selectDoctor(name, active, btn, id) {
+function selectDoctor(name, active, btn) {
   selectedDoctorName = name;
-  selectedDoctorId = id;
   selectedDoctorActive = active;
-  const doc = id != null ? fetchedDoctors.find(d=>d.id===id) : fetchedDoctors.find(d=>d.fullName===name);
+  const doc = fetchedDoctors.find(d=>d.fullName===name);
   selectedDoctorSpecialty = doc ? (doc.specialty || '') : '';
   selectedDoctorType = doc ? (doc.type || '') : '';
   document.getElementById('btnConfirm').disabled = !active;
@@ -1124,7 +1122,6 @@ function submitBooking() {
     phone:     document.getElementById('phone').value,
     state:     document.getElementById('state').value,
     doctor:    selectedDoctorName,
-    doctorId:  selectedDoctorId,
     specialty: selectedDoctorSpecialty,
     type:      selectedDoctorType
   };
@@ -1154,15 +1151,15 @@ function submitBooking() {
 // ── Receipt Modal ─────────────────────────────────────────
 function showReceipt(bk, date, queue) {
   const specialtyRow = (bk.type==='Specialist' && bk.specialty)
-    ? `<div class="receipt-row"><span class="receipt-key">Specialty</span><span class="receipt-val">${bk.specialty}</span></div>`
+    ? `<div class="receipt-row"><span class="receipt-key">Specialty</span><span class="receipt-val">${escapeHtml(bk.specialty)}</span></div>`
     : '';
   document.getElementById('receiptBody').innerHTML=`
-    <div class="receipt-row"><span class="receipt-key">Patient</span><span class="receipt-val">${bk.firstName} ${bk.lastName}</span></div>
-    <div class="receipt-row"><span class="receipt-key">Phone</span><span class="receipt-val">${bk.phone}</span></div>
-    <div class="receipt-row"><span class="receipt-key">Doctor</span><span class="receipt-val">${bk.doctor}</span></div>
-    <div class="receipt-row"><span class="receipt-key">Type</span><span class="receipt-val">${bk.type||'—'}</span></div>
+    <div class="receipt-row"><span class="receipt-key">Patient</span><span class="receipt-val">${escapeHtml(bk.firstName)} ${escapeHtml(bk.lastName)}</span></div>
+    <div class="receipt-row"><span class="receipt-key">Phone</span><span class="receipt-val">${escapeHtml(bk.phone)}</span></div>
+    <div class="receipt-row"><span class="receipt-key">Doctor</span><span class="receipt-val">${escapeHtml(bk.doctor)}</span></div>
+    <div class="receipt-row"><span class="receipt-key">Type</span><span class="receipt-val">${escapeHtml(bk.type)||'—'}</span></div>
     ${specialtyRow}
-    <div class="receipt-row"><span class="receipt-key">Assigned Date</span><span class="receipt-val">${date}</span></div>
+    <div class="receipt-row"><span class="receipt-key">Assigned Date</span><span class="receipt-val">${escapeHtml(date)}</span></div>
   `;
   document.getElementById('receiptQueue').textContent = queue;
   document.getElementById('receiptModal').style.display='flex';
@@ -1245,6 +1242,18 @@ function doctorSignUp() {
 function showSignupSuccessModal(){ document.getElementById('signupSuccessModal').style.display='flex'; }
 function closeSignupSuccessModal(){ document.getElementById('signupSuccessModal').style.display='none'; showLoginSection(); }
 
+// SECURITY: patient-supplied text (name, phone) and other values from the
+// API are inserted into the page with innerHTML in several places below.
+// Without escaping, a booking made with a name like <script>...</script>
+// would execute inside the doctor's dashboard the next time they viewed
+// their appointment list (a stored XSS attack). Always pass such values
+// through escapeHtml() before inserting them into an HTML string.
+function escapeHtml(str) {
+  return String(str ?? '').replace(/[&<>"']/g, ch => ({
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+  }[ch]));
+}
+
 // ── Doctor Login ──────────────────────────────────────────
 function doctorLogin() {
   const email=document.getElementById('loginEmail').value;
@@ -1258,7 +1267,10 @@ function doctorLogin() {
   .then(data=>{
     if(data.result==='success'){
       currentDoctorEmail=data.doctor.email;
-      localStorage.setItem('doctorSessionEmail', data.doctor.email); // حفظ الجلسة للبقاء بعد Refresh
+      // SECURITY: sessions are now the signed token issued at login, not
+      // the doctor's plain email. The server verifies this token on every
+      // protected request instead of trusting a client-supplied email.
+      localStorage.setItem('doctorSessionToken', data.doctor.token);
       document.getElementById('welcomeDocName').innerText='Dr. '+data.doctor.fullName;
       setDoctorVerifiedBadge(data.doctor.isVerified);
       document.getElementById('settingDailyLimit').value=data.doctor.dailyLimit;
@@ -1270,7 +1282,7 @@ function doctorLogin() {
       updateServiceStatus();
       renderSubscriptionInfo(data.doctor);
       showDashboard('push');
-      fetchDoctorDashboardData(data.doctor.email);
+      fetchDoctorDashboardData();
     } else showMsg('loginErr',data.message||'Login failed.','error');
   })
   .catch(()=>showMsg('loginErr','Login error. Please try again.','error'))
@@ -1307,6 +1319,11 @@ function getSelectedWorkingDays() {
     .map(cb=>parseInt(cb.dataset.day,10));
 }
 
+function authHeaders() {
+  const token = localStorage.getItem('doctorSessionToken');
+  return token ? { 'Authorization': 'Bearer ' + token } : {};
+}
+
 function saveDoctorSettings() {
   const limit=document.getElementById('settingDailyLimit').value;
   const active=document.getElementById('toggleActive').checked;
@@ -1323,8 +1340,8 @@ function saveDoctorSettings() {
   if(workStart>=workEnd){ alert('Start time must be before end time.'); return; }
   hideMsg('settingsSaved');
   setBtnLoading('btnSaveSettings', true, 'Saving...');
-  fetch(scriptURL,{method:'POST',headers:{'Content-Type':'application/json'},
-    body:JSON.stringify({action:'update_settings',email:currentDoctorEmail,dailyLimit:limit,isActive:active,workingDays,workStart,workEnd})})
+  fetch(scriptURL,{method:'POST',headers:{'Content-Type':'application/json',...authHeaders()},
+    body:JSON.stringify({action:'update_settings',dailyLimit:limit,isActive:active,workingDays,workStart,workEnd})})
   .then(r=>r.json())
   .then(data=>{
     if(data.result==='success') showMsg('settingsSaved','Settings saved!','success');
@@ -1369,8 +1386,8 @@ function redeemSubscriptionCode() {
   btnText.style.display='none';
   btn.disabled=true;
   
-  fetch(scriptURL,{method:'POST',headers:{'Content-Type':'application/json'},
-    body:JSON.stringify({action:'redeem_subscription_code',email:currentDoctorEmail,code})})
+  fetch(scriptURL,{method:'POST',headers:{'Content-Type':'application/json',...authHeaders()},
+    body:JSON.stringify({action:'redeem_subscription_code',code})})
   .then(r=>r.json())
   .then(data=>{
     // Hide spinner and enable button
@@ -1410,8 +1427,8 @@ function updateServiceStatus() {
 }
 
 // ── Appointments table ────────────────────────────────────
-function fetchDoctorDashboardData(email) {
-  fetch(`${scriptURL}?doctorEmail=${encodeURIComponent(email)}&_t=${Date.now()}`)
+function fetchDoctorDashboardData() {
+  fetch(`${scriptURL}?doctorEmail=session&_t=${Date.now()}`, { headers: authHeaders() })
   .then(r=>r.json())
   .then(data=>{
     allAppointments=data.appointments||[];
@@ -1466,17 +1483,17 @@ function renderAppointments(filter) {
   let html='', rowNum=0;
   orderedKeys.forEach(key=>{
     const label=dayOrder.includes(key)?(' '+dayLabelDisplay(key)):' '+groups[key][0].assignedDay;
-    html+=`<tr class="day-group-header"><td colspan="7">${label} — ${groups[key].length} patient(s)</td></tr>`;
+    html+=`<tr class="day-group-header"><td colspan="7">${escapeHtml(label)} — ${groups[key].length} patient(s)</td></tr>`;
     groups[key].forEach(a=>{
       rowNum++;
       const badgeCls=key==='TODAY'?'badge-today':key==='YESTERDAY'?'badge-yesterday':key==='TOMORROW'?'badge-tomorrow':'badge-other';
       html+=`<tr>
         <td>${rowNum}</td>
-        <td>${a.firstName}</td><td>${a.lastName}</td>
-        <td>${a.phone}</td>
-        <td><span class="day-badge ${badgeCls}">${dayLabelDisplay(key)}</span></td>
-        <td>${a.assignedDay}</td>
-        <td><strong>#${a.queueNumber}</strong></td>
+        <td>${escapeHtml(a.firstName)}</td><td>${escapeHtml(a.lastName)}</td>
+        <td>${escapeHtml(a.phone)}</td>
+        <td><span class="day-badge ${badgeCls}">${escapeHtml(dayLabelDisplay(key))}</span></td>
+        <td>${escapeHtml(a.assignedDay)}</td>
+        <td><strong>#${escapeHtml(a.queueNumber)}</strong></td>
       </tr>`;
     });
   });
@@ -1484,27 +1501,28 @@ function renderAppointments(filter) {
   document.getElementById('apptCount').textContent=`Total shown: ${list.length} appointment(s)`;
 }
 
-function logoutDoctor(){ currentDoctorEmail=''; allAppointments=[]; localStorage.removeItem('doctorSessionEmail'); nextStep(0); }
+function logoutDoctor(){ currentDoctorEmail=''; allAppointments=[]; localStorage.removeItem('doctorSessionToken'); nextStep(0); }
 
 // ── استرجاع جلسة الطبيب تلقائياً بعد Refresh ────────────────
-// إن كان الطبيب مسجّلاً دخوله سابقاً (بريده محفوظ من آخر تسجيل دخول ناجح)،
-// نعيد فتح لوحة التحكم مباشرة بدل الرجوع لشاشة التسجيل، ونجلب أحدث
-// إعداداته ومواعيده من الشيت مباشرة عبر بريده (بدون الحاجة لكلمة السر مجدداً)
+// إن كان الطبيب مسجّلاً دخوله سابقاً (نملك رمز جلسة صالح محفوظ من آخر
+// تسجيل دخول ناجح)، نعيد فتح لوحة التحكم مباشرة، ونجلب أحدث إعداداته
+// ومواعيده عبر ذلك الرمز الموقّع — وليس عبر بريده فقط كما كان سابقاً،
+// لأن ذلك كان يسمح لأي شخص يعرف بريد الطبيب برؤية بيانات مرضاه.
 function restoreDoctorSession() {
-  const savedEmail = localStorage.getItem('doctorSessionEmail');
-  if (!savedEmail) {
+  const savedToken = localStorage.getItem('doctorSessionToken');
+  if (!savedToken) {
     if (currentRouteSegment() === 'dashboard') showLoginSection('replace');
     return;
   }
-  fetch(`${scriptURL}?doctorEmail=${encodeURIComponent(savedEmail)}&_t=${Date.now()}`)
+  fetch(`${scriptURL}?doctorEmail=session&_t=${Date.now()}`, { headers: authHeaders() })
   .then(r=>r.json())
   .then(data=>{
     if (!data || !data.doctorName) {
-      localStorage.removeItem('doctorSessionEmail');
+      localStorage.removeItem('doctorSessionToken');
       if (currentRouteSegment() === 'dashboard') showLoginSection('replace');
       return;
     }
-    currentDoctorEmail = savedEmail;
+    currentDoctorEmail = data.doctorEmail || currentDoctorEmail;
     document.getElementById('welcomeDocName').innerText='Dr. '+data.doctorName;
     setDoctorVerifiedBadge(data.isVerified);
     document.getElementById('settingDailyLimit').value=data.dailyLimit;
