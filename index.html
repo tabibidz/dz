@@ -76,6 +76,27 @@ body:before{
 .step{display:none}
 .step.active{display:block}
 
+/* ── Signup Stepper (Account → Location → Type) ── */
+.signup-stepper{display:flex;align-items:flex-start;justify-content:center;gap:0;margin:4px 0 26px}
+#signupStepper{display:none} /* shown only by updateSignupStepper() for the 3 signup steps */
+.signup-stepper .st-item{display:flex;flex-direction:column;align-items:center;flex:0 0 auto;width:88px;position:relative}
+.signup-stepper .st-circle{
+  width:38px;height:38px;border-radius:50%;display:flex;align-items:center;justify-content:center;
+  background:#fff;border:2px solid #d7dee9;color:#9aa5b6;font-weight:700;font-size:14px;
+  transition:all .2s ease;flex-shrink:0;
+}
+.signup-stepper .st-circle .ui-icon{stroke:#9aa5b6}
+.signup-stepper .st-label{margin-top:7px;font-size:12.5px;font-weight:600;color:#9aa5b6;text-align:center;white-space:nowrap}
+.signup-stepper .st-line{flex:1 1 auto;height:2px;background:#d7dee9;margin-top:18px;min-width:18px;transition:background .2s ease}
+.signup-stepper .st-item.st-done .st-circle{background:var(--success);border-color:var(--success)}
+.signup-stepper .st-item.st-done .st-circle .ui-icon{stroke:#fff}
+.signup-stepper .st-item.st-done .st-label{color:var(--success)}
+.signup-stepper .st-item.st-active .st-circle{background:var(--primary);border-color:var(--primary);color:#fff;box-shadow:0 0 0 4px var(--primary-soft)}
+.signup-stepper .st-item.st-active .st-circle .ui-icon{stroke:#fff}
+.signup-stepper .st-item.st-active .st-label{color:var(--primary)}
+.signup-stepper .st-line.st-line-done{background:var(--success)}
+
+
 h2,h3,h4{font-family:var(--font-display);color:var(--ink);font-weight:800;letter-spacing:-.3px}
 h2,h3{margin-top:0;font-size:26px;text-align:center;margin-bottom:12px}
 h2:after,h3:after{content:"";display:block;width:40px;height:4px;border-radius:10px;background:var(--primary);margin:14px auto 0}
@@ -494,9 +515,28 @@ function verifiedBadgeMarkup(size=15){
   </div>
 </div>
 
+<!-- ─── Doctor Sign Up Stepper (Account → Location → Type) ─── -->
+<div id="doctorSignupWizard">
+<div class="signup-stepper" id="signupStepper">
+  <div class="st-item" id="st-item-1" data-step="1">
+    <div class="st-circle" id="st-circle-1">1</div>
+    <div class="st-label">Account</div>
+  </div>
+  <div class="st-line" id="st-line-1"></div>
+  <div class="st-item" id="st-item-2" data-step="2">
+    <div class="st-circle" id="st-circle-2">2</div>
+    <div class="st-label">Location</div>
+  </div>
+  <div class="st-line" id="st-line-2"></div>
+  <div class="st-item" id="st-item-3" data-step="3">
+    <div class="st-circle" id="st-circle-3">3</div>
+    <div class="st-label">Type</div>
+  </div>
+</div>
+
 <!-- ─── Doctor Sign Up — Step 1: Personal Information ─── -->
 <div id="doctor-signup-1" class="step">
-  <h3>Personal Information</h3>
+  <h3>Account</h3>
   <div class="form-grid">
     <div class="field"><input type="text" id="docFirstName" placeholder=" "><label for="docFirstName">First Name</label></div>
     <div class="field"><input type="text" id="docLastName" placeholder=" "><label for="docLastName">Last Name</label></div>
@@ -542,13 +582,13 @@ function verifiedBadgeMarkup(size=15){
   </div>
   <div id="docStep1ErrMsg" class="msg msg-error" style="margin-top:2px"></div>
   <div class="btn-group">
-    <button class="btn-primary" onclick="validateDocStep1()">Next</button>
+    <button id="btnDocStep1Next" class="btn-primary" onclick="validateDocStep1()">Next</button>
   </div>
 </div>
 
 <!-- ─── Doctor Sign Up — Step 2: Location Information ─── -->
 <div id="doctor-signup-2" class="step">
-  <h3>Location Information</h3>
+  <h3 style="display:flex;align-items:center;gap:8px"><svg class="ui-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 21s7-7.4 7-12.4A7 7 0 0 0 5 8.6C5 13.6 12 21 12 21Z"/><circle cx="12" cy="8.6" r="2.4"/></svg>Location</h3>
   <div class="form-grid">
     <div class="full-width field-select"><label>State (Wilaya)</label><select id="docState" onchange="updateDocCircles()"><option value="">Select State</option></select></div>
     <div class="full-width field-select"><label>Circle (Daïra)</label><select id="docCircle" onchange="updateDocMunicipalities()"><option value="">Select Circle</option></select></div>
@@ -557,13 +597,14 @@ function verifiedBadgeMarkup(size=15){
   </div>
   <div id="docStep2ErrMsg" class="msg msg-error" style="margin-top:2px"></div>
   <div class="btn-group">
+    <button class="btn-back" onclick="showStepById('doctor-signup-1')">Back</button>
     <button class="btn-primary" onclick="validateDocStep2()">Next</button>
   </div>
 </div>
 
 <!-- ─── Doctor Sign Up — Step 3: Doctor Type ───────────── -->
 <div id="doctor-signup-3" class="step">
-  <h3>Doctor Type</h3>
+  <h3>Type</h3>
   <div class="form-grid">
     <div class="field-select full-width">
       <label>Type</label>
@@ -580,9 +621,12 @@ function verifiedBadgeMarkup(size=15){
     </div>
   </div>
   <div class="btn-group">
+    <button class="btn-back" onclick="showStepById('doctor-signup-2')">Back</button>
     <button id="btnRegister" class="btn-success" onclick="doctorSignUp()">Register</button>
   </div>
 </div>
+</div>
+
 
 <!-- ─── Doctor Dashboard ──────────────────────────────── -->
 <div id="doctor-dashboard" class="step">
@@ -831,6 +875,7 @@ function populateSel(id, items) {
 function nextStep(n, mode) {
   document.querySelectorAll('.step').forEach(e=>e.classList.remove('active'));
   document.getElementById('step-'+n).classList.add('active');
+  updateSignupStepper('step-'+n);
   if (n === 0 || n === 1) {
     var route = n === 0 ? '' : 'book';
     mode = mode || 'push';
@@ -841,6 +886,41 @@ function nextStep(n, mode) {
 function showStepById(id) {
   document.querySelectorAll('.step').forEach(e=>e.classList.remove('active'));
   document.getElementById(id).classList.add('active');
+  updateSignupStepper(id);
+}
+function updateSignupStepper(activeStepId) {
+  const map = { 'doctor-signup-1':1, 'doctor-signup-2':2, 'doctor-signup-3':3 };
+  const current = map[activeStepId];
+  const stepper = document.getElementById('signupStepper');
+  if (!stepper) return;
+  if (!current) {
+    // FIX: the stepper had no way to hide itself once shown — it wasn't
+    // marked with the shared `.step` class the rest of the app uses to
+    // show/hide screens, so it stayed visible everywhere (home page,
+    // login, dashboard, booking flow) once rendered. It's now hidden by
+    // default in CSS (#signupStepper{display:none}) and only this
+    // function is allowed to reveal it — and only for the 3 signup steps.
+    stepper.style.display = 'none';
+    return;
+  }
+  stepper.style.display = 'flex';
+  for (let n = 1; n <= 3; n++) {
+    const item = document.getElementById('st-item-'+n);
+    const circle = document.getElementById('st-circle-'+n);
+    if (!item || !circle) continue;
+    item.classList.remove('st-active','st-done');
+    if (n < current) {
+      item.classList.add('st-done');
+      circle.innerHTML = uiIcon('check', 17);
+    } else if (n === current) {
+      item.classList.add('st-active');
+      circle.textContent = n;
+    } else {
+      circle.textContent = n;
+    }
+    const line = document.getElementById('st-line-'+n);
+    if (line) line.classList.toggle('st-line-done', n < current);
+  }
 }
 let loginTypewriterStarted = false;
 function startLoginTypewriter() {
@@ -868,6 +948,7 @@ function startLoginTypewriter() {
 function showLoginSection(mode) {
   document.querySelectorAll('.step').forEach(e=>e.classList.remove('active'));
   document.getElementById('doctor-login-section').classList.add('active');
+  updateSignupStepper('doctor-login-section');
   startLoginTypewriter();
   mode = mode || 'push';
   if (mode === 'push') setRoute('login', false);
@@ -876,6 +957,7 @@ function showLoginSection(mode) {
 function showSignUpSection(mode) {
   document.querySelectorAll('.step').forEach(e=>e.classList.remove('active'));
   document.getElementById('doctor-signup-1').classList.add('active');
+  updateSignupStepper('doctor-signup-1');
   mode = mode || 'push';
   if (mode === 'push') setRoute('register', false);
   else if (mode === 'replace') setRoute('register', true);
@@ -883,6 +965,7 @@ function showSignUpSection(mode) {
 function showDashboard(mode) {
   document.querySelectorAll('.step').forEach(e=>e.classList.remove('active'));
   document.getElementById('doctor-dashboard').classList.add('active');
+  updateSignupStepper('doctor-dashboard');
   mode = mode || 'push';
   if (mode === 'push') setRoute('dashboard', false);
   else if (mode === 'replace') setRoute('dashboard', true);
@@ -1016,6 +1099,7 @@ function validateDocStep1() {
   hideMsg('docStep1ErrMsg');
   const pass=document.getElementById('docPassword').value;
   const docPhone=document.getElementById('docPhone').value.trim();
+  const docEmail=document.getElementById('docEmail').value.trim();
   if(!document.getElementById('docFirstName').value.trim()||!document.getElementById('docLastName').value.trim()||!docPhone) {
     return showFieldMsg('docStep1ErrMsg','Please fill in your name and phone number.');
   }
@@ -1025,10 +1109,33 @@ function validateDocStep1() {
   if(!document.getElementById('docBirthDate').value) {
     return showFieldMsg('docStep1ErrMsg','Please enter your date of birth.');
   }
-  if(!isValidTrustedEmail(document.getElementById('docEmail').value)) return showFieldMsg('docStep1ErrMsg','Please enter a valid email.');
+  if(!isValidTrustedEmail(docEmail)) return showFieldMsg('docStep1ErrMsg','Please enter a valid email.');
   if(!pass) return showFieldMsg('docStep1ErrMsg','Please enter a password.');
   if(pass!==document.getElementById('docConfirmPassword').value) return showFieldMsg('docStep1ErrMsg','Passwords do not match!');
-  showStepById('doctor-signup-2');
+
+  // Ask the server whether this email/phone is already registered BEFORE
+  // letting the doctor continue to step 2 — previously this was only
+  // checked at final submit (step 3), so someone could fill out the whole
+  // form and only then get bounced back to step 1 with the error.
+  setBtnLoading('btnDocStep1Next', true);
+  fetch(scriptURL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ action: 'check_availability', email: docEmail, phone: docPhone })
+  })
+  .then(r=>r.json())
+  .then(data=>{
+    if (data.result === 'success') {
+      showStepById('doctor-signup-2');
+      return;
+    }
+    // data.field is 'email' or 'phone' — highlight the right message.
+    showFieldMsg('docStep1ErrMsg', data.message || 'This email or phone is already registered.');
+  })
+  .catch(()=>{
+    showFieldMsg('docStep1ErrMsg', 'Could not verify email/phone. Please check your internet connection and try again.');
+  })
+  .finally(()=>{ setBtnLoading('btnDocStep1Next', false, 'Next'); });
 }
 function validateDocStep2() {
   hideMsg('docStep2ErrMsg');
