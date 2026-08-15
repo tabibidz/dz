@@ -597,7 +597,6 @@ function verifiedBadgeMarkup(size=15){
   </div>
   <div id="docStep2ErrMsg" class="msg msg-error" style="margin-top:2px"></div>
   <div class="btn-group">
-    <button class="btn-back" onclick="showStepById('doctor-signup-1')">Back</button>
     <button class="btn-primary" onclick="validateDocStep2()">Next</button>
   </div>
 </div>
@@ -621,7 +620,6 @@ function verifiedBadgeMarkup(size=15){
     </div>
   </div>
   <div class="btn-group">
-    <button class="btn-back" onclick="showStepById('doctor-signup-2')">Back</button>
     <button id="btnRegister" class="btn-success" onclick="doctorSignUp()">Register</button>
   </div>
 </div>
@@ -904,6 +902,7 @@ function updateSignupStepper(activeStepId) {
     return;
   }
   stepper.style.display = 'flex';
+  const stepIds = { 1:'doctor-signup-1', 2:'doctor-signup-2', 3:'doctor-signup-3' };
   for (let n = 1; n <= 3; n++) {
     const item = document.getElementById('st-item-'+n);
     const circle = document.getElementById('st-circle-'+n);
@@ -912,11 +911,21 @@ function updateSignupStepper(activeStepId) {
     if (n < current) {
       item.classList.add('st-done');
       circle.innerHTML = uiIcon('check', 17);
+      // Completed steps are clickable — this is now the only way back,
+      // since the per-step "Back" buttons were removed. Only steps
+      // already passed are clickable; you can't skip ahead by tapping
+      // a future step.
+      item.style.cursor = 'pointer';
+      item.onclick = (function(id){ return function(){ showStepById(id); }; })(stepIds[n]);
     } else if (n === current) {
       item.classList.add('st-active');
       circle.textContent = n;
+      item.style.cursor = 'default';
+      item.onclick = null;
     } else {
       circle.textContent = n;
+      item.style.cursor = 'default';
+      item.onclick = null;
     }
     const line = document.getElementById('st-line-'+n);
     if (line) line.classList.toggle('st-line-done', n < current);
