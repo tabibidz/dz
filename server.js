@@ -169,19 +169,42 @@ function nextWorkingDay(dateStr, wdSet) {
 async function cleanupOldAppointments() {
   try {
     const { data: allDocs, error } = await supabase.from('doctors').select('*');
-    if (error || !allDocs) return;
+    if (error) {
+      // FIX: this used to be silently swallowed (`if (error || !allDocs) return;`
+      // with no log), so a failing doctors fetch made cleanup a permanent
+      // no-op with zero trace in the logs. Now it's visible.
+      console.error('cleanupOldAppointments: failed to fetch doctors:', error.message);
+      return;
+    }
+    if (!allDocs || !allDocs.length) return;
 
     const today = todayStr();
+    let totalDeleted = 0;
 
     for (const doc of allDocs) {
       const wdSet   = parseWorkingDays(doc.working_days);
       const cutoff  = previousWorkingDay(today, wdSet);
 
-      await supabase
+      // FIX: the delete's result was never inspected, so a per-doctor
+      // failure (e.g. a constraint or transient DB error) also vanished
+      // silently. `.select('id')` on a delete returns the deleted rows so
+      // we can log both the error and how many rows actually went.
+      const { data: deleted, error: delErr } = await supabase
         .from('appointments')
         .delete()
         .eq('doctor_id', doc.id)
-        .lt('assigned_date', cutoff);
+        .lt('assigned_date', cutoff)
+        .select('id');
+
+      if (delErr) {
+        console.error(`cleanupOldAppointments: delete failed for doctor ${doc.id} (cutoff ${cutoff}):`, delErr.message);
+        continue;
+      }
+      if (deleted && deleted.length) totalDeleted += deleted.length;
+    }
+
+    if (totalDeleted > 0) {
+      console.log(`cleanupOldAppointments: deleted ${totalDeleted} expired appointment(s) across ${allDocs.length} doctor(s).`);
     }
   } catch (err) {
     console.error('cleanupOldAppointments error:', err.message);
