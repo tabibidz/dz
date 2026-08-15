@@ -206,6 +206,39 @@ async function cleanupOldAppointments() {
     if (totalDeleted > 0) {
       console.log(`cleanupOldAppointments: deleted ${totalDeleted} expired appointment(s) across ${allDocs.length} doctor(s).`);
     }
+
+    // FIX: appointments whose doctor_id no longer matches any row in
+    // `doctors` (a deleted doctor account, or a stale/mismatched id from
+    // before doctorId-based booking was in place) were never reachable —
+    // the loop above only ever touches doctor_id values that exist in
+    // `allDocs`. As a safety net, sweep out any appointment older than a
+    // fixed absolute cutoff (today - RENEWAL_WINDOW_DAYS is overkill here;
+    // a flat 2-day-old cutoff matches the "keep yesterday, drop older"
+    // intent) regardless of whether its doctor still exists.
+    const currentDoctorIds = new Set(allDocs.map(d => d.id));
+    const absoluteCutoff = addDays(today, -2);
+    const { data: oldRows, error: oldErr } = await supabase
+      .from('appointments')
+      .select('id, doctor_id')
+      .lt('assigned_date', absoluteCutoff);
+
+    if (oldErr) {
+      console.error('cleanupOldAppointments: orphan scan failed:', oldErr.message);
+    } else if (oldRows && oldRows.length) {
+      const orphanIds = oldRows.filter(r => !currentDoctorIds.has(r.doctor_id)).map(r => r.id);
+      if (orphanIds.length) {
+        const { data: orphanDeleted, error: orphanErr } = await supabase
+          .from('appointments')
+          .delete()
+          .in('id', orphanIds)
+          .select('id');
+        if (orphanErr) {
+          console.error('cleanupOldAppointments: orphan delete failed:', orphanErr.message);
+        } else {
+          console.log(`cleanupOldAppointments: deleted ${orphanDeleted ? orphanDeleted.length : 0} orphaned appointment(s) (no matching doctor).`);
+        }
+      }
+    }
   } catch (err) {
     console.error('cleanupOldAppointments error:', err.message);
   }
@@ -448,7 +481,7 @@ app.get('/api', async (req, res) => {
 function apiRateLimiter(req, res, next) {
   const data = parseBody(req);
   req._parsedBody = data;
-  if (data.action === 'login') return loginLimiter(req, res, next);
+  if (data.action === 'login' || data.action === 'check_availability') return loginLimiter(req, res, next);
   if (data.action === 'signup' || data.action === 'book') return writeLimiter(req, res, next);
   return next();
 }
@@ -457,11 +490,47 @@ app.post('/api', apiRateLimiter, async (req, res) => {
   const data = req._parsedBody || parseBody(req);
   const { action } = data;
 
+  // ── check_availability ───────────────────────────────────────
+  // Lets the signup wizard verify email/phone before the doctor moves
+  // past step 1, instead of only finding out at final submit (step 3)
+  // and getting bounced all the way back. Read-only — creates nothing.
+  if (action === 'check_availability') {
+    const email = String(data.email || '').trim().toLowerCase();
+    const phone = String(data.phone || '').trim();
+    if (!email && !phone) return fail(res, 'Email or phone required.');
+
+    if (email) {
+      const { data: existing } = await supabase
+        .from('doctors')
+        .select('id')
+        .eq('email', email)
+        .limit(1);
+      if (existing && existing.length)
+        return fail(res, 'Email is already registered.', 'email');
+    }
+
+    if (phone) {
+      const { data: existingPhone } = await supabase
+        .from('doctors')
+        .select('id')
+        .eq('phone', phone)
+        .limit(1);
+      if (existingPhone && existingPhone.length)
+        return fail(res, 'Phone is already registered.', 'phone');
+    }
+
+    return res.json({ result: 'success' });
+  }
+
   // ── signup ────────────────────────────────────────────────
   if (action === 'signup') {
     const email = String(data.email || '').trim().toLowerCase();
 
     // Check duplicate email
+    // NOTE: this is checked again here (in addition to check_availability
+    // above, called from step 1 of the signup wizard) as the authoritative
+    // final guard — closes the race window between the step-1 check and
+    // the actual insert, so this stays even though the UI checks earlier too.
     const { data: existing } = await supabase
       .from('doctors')
       .select('id')
