@@ -734,6 +734,132 @@ function verifiedBadgeMarkup(size=15){
   </div>
 </div>
 
+<!-- ─── Admin Panel ─────────────────────────────────────
+     Not linked from anywhere in the UI. Reachable only via a direct
+     link to /#admin, and gated by a server-verified admin secret
+     (never checked in the browser) plus a short-lived session token. -->
+
+<!-- Stage 1: admin password gate -->
+<div id="admin-login" class="step">
+  <h3>Admin Login</h3>
+  <div class="form-grid">
+    <div class="full-width field password-wrapper">
+      <input type="password" id="adminSecretInput" placeholder=" ">
+      <label for="adminSecretInput">Admin Secret</label>
+      <span class="eye" onclick="toggleEye('adminSecretInput',this)" aria-label="Show or hide password">
+  <svg class="eye-open" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M2.5 12s3.5-6 9.5-6 9.5 6 9.5 6-3.5 6-9.5 6-9.5-6-9.5-6Z"/>
+    <circle cx="12" cy="12" r="2.7"/>
+  </svg>
+  <svg class="eye-closed" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="display:none">
+    <path d="M3 3l18 18"/>
+    <path d="M10.6 5.1A10.7 10.7 0 0 1 12 5c6 0 9.5 7 9.5 7a18 18 0 0 1-3 3.7"/>
+    <path d="M6.2 6.2C3.9 7.8 2.5 12 2.5 12s3.5 6 9.5 6c1.4 0 2.6-.3 3.7-.8"/>
+  </svg>
+</span>
+    </div>
+  </div>
+  <div id="adminLoginMsg" class="msg msg-error" style="margin-top:2px"></div>
+  <div class="btn-group">
+    <button id="btnAdminLogin" class="btn-primary" onclick="adminLogin()">Log In</button>
+  </div>
+</div>
+
+<!-- Stage 2: search for a doctor -->
+<div id="admin-search" class="step">
+  <h3>Find a Doctor</h3>
+  <div class="form-grid">
+    <div class="full-width field"><input type="text" id="adminSearchInput" placeholder=" "><label for="adminSearchInput">Email or Phone Number</label></div>
+  </div>
+  <div id="adminSearchMsg" class="msg msg-error" style="margin-top:2px"></div>
+  <div class="btn-group">
+    <button class="btn-back" onclick="adminLogout()" style="min-width:0">Log Out</button>
+    <button id="btnAdminSearch" class="btn-primary" onclick="adminSearchDoctor()">Search</button>
+  </div>
+</div>
+
+<!-- Stage 3: full doctor profile — view / edit / reset password / delete -->
+<div id="admin-profile" class="step">
+  <h3 id="adminProfileTitle">Doctor Profile</h3>
+
+  <div class="summary-box" style="margin-bottom:20px">
+    <div class="summary-row"><span>Subscription</span><strong id="adminSubLabel">—</strong></div>
+    <div class="summary-row"><span>Status</span><strong id="adminSubStatus">—</strong></div>
+    <div class="summary-row"><span>Days Remaining</span><strong id="adminSubDays">—</strong></div>
+  </div>
+
+  <div class="form-grid">
+    <div class="field"><input type="text" id="adminFirstName" placeholder=" "><label for="adminFirstName">First Name</label></div>
+    <div class="field"><input type="text" id="adminLastName" placeholder=" "><label for="adminLastName">Last Name</label></div>
+    <div class="field-select"><label>Date of Birth</label><input type="date" id="adminBirthDate"></div>
+    <div class="field"><input type="tel" id="adminPhone" placeholder=" " maxlength="10"><label for="adminPhone">Phone</label></div>
+    <div class="full-width field"><input type="email" id="adminEmail" placeholder=" "><label for="adminEmail">Email</label></div>
+
+    <div class="full-width field-select"><label>State (Wilaya)</label><select id="adminState" onchange="updateAdminCircles()"></select></div>
+    <div class="full-width field-select"><label>Circle (Daïra)</label><select id="adminCircle" onchange="updateAdminMunicipalities()"></select></div>
+    <div class="full-width field-select"><label>Municipality (Baladiya)</label><select id="adminMunicipality"></select></div>
+    <div class="full-width field"><input type="text" id="adminAddress" placeholder=" "><label for="adminAddress">Clinic Address</label></div>
+
+    <div class="field-select"><label>Type</label>
+      <select id="adminType" onchange="toggleAdminSpecialty()">
+        <option value="General">General</option>
+        <option value="Specialist">Specialist</option>
+      </select>
+    </div>
+    <div class="field-select" id="adminSpecialtyContainer" style="display:none">
+      <label>Specialty</label>
+      <select id="adminSpecialty"></select>
+    </div>
+    <div class="field"><input type="number" id="adminDailyLimit" placeholder=" " min="1"><label for="adminDailyLimit">Daily Patient Limit</label></div>
+
+    <div class="toggle-wrap"><label>Account Active</label><label class="toggle"><input type="checkbox" id="adminIsActive"><span class="slider"></span></label></div>
+    <div class="toggle-wrap"><label>Verified Badge</label><label class="toggle"><input type="checkbox" id="adminIsVerified"><span class="slider"></span></label></div>
+
+    <div class="full-width settings-top-row">
+      <div class="field-select"><label>Work Start</label><input type="time" id="adminWorkStart"></div>
+      <div class="field-select"><label>Work End</label><input type="time" id="adminWorkEnd"></div>
+    </div>
+
+    <div class="full-width">
+      <label style="font-size:13px;font-weight:650;color:#334155;display:block;margin-bottom:8px">Working Days</label>
+      <div id="adminWorkingDaysContainer"></div>
+    </div>
+  </div>
+
+  <div id="adminProfileMsg" class="msg" style="margin-top:14px;display:none"></div>
+  <div class="btn-group">
+    <button class="btn-back" onclick="showStepById('admin-search')" style="min-width:0">Back to Search</button>
+    <button id="btnAdminSave" class="btn-primary" onclick="adminSaveDoctor()">Save Changes</button>
+  </div>
+
+  <div class="summary-box" style="margin-top:24px">
+    <label style="font-size:13px;font-weight:650;color:#334155;display:block;margin-bottom:10px">Reset Password</label>
+    <div class="form-grid">
+      <div class="full-width field password-wrapper">
+        <input type="password" id="adminNewPassword" placeholder=" ">
+        <label for="adminNewPassword">New Password</label>
+        <span class="eye" onclick="toggleEye('adminNewPassword',this)" aria-label="Show or hide password">
+  <svg class="eye-open" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M2.5 12s3.5-6 9.5-6 9.5 6 9.5 6-3.5 6-9.5 6-9.5-6-9.5-6Z"/>
+    <circle cx="12" cy="12" r="2.7"/>
+  </svg>
+  <svg class="eye-closed" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="display:none">
+    <path d="M3 3l18 18"/>
+    <path d="M10.6 5.1A10.7 10.7 0 0 1 12 5c6 0 9.5 7 9.5 7a18 18 0 0 1-3 3.7"/>
+    <path d="M6.2 6.2C3.9 7.8 2.5 12 2.5 12s3.5 6 9.5 6c1.4 0 2.6-.3 3.7-.8"/>
+  </svg>
+</span>
+      </div>
+    </div>
+    <button id="btnAdminResetPw" class="btn-primary" style="margin-top:10px" onclick="adminResetPassword()">Reset Password</button>
+  </div>
+
+  <div class="summary-box" style="margin-top:16px;border-color:var(--danger-soft)">
+    <label style="font-size:13px;font-weight:650;color:var(--danger);display:block;margin-bottom:10px">Danger Zone</label>
+    <button class="btn-primary" style="background:var(--danger)" onclick="adminDeleteDoctor()">Delete Doctor Account</button>
+  </div>
+</div>
+
 </div><!-- /container -->
 
 <!-- ─── Booking Receipt Modal ─────────────────────────── -->
@@ -829,6 +955,8 @@ Promise.all([
   populateSel('docState',   states);
   populateSel('specialty',  specialtiesData);
   populateSel('docSpecialty', specialtiesData);
+  populateSel('adminState', states);
+  populateSel('adminSpecialty', specialtiesData);
 
   setLoadingState(false);
 
@@ -858,7 +986,7 @@ function setRoute(route, replace) {
 }
 function currentRouteSegment() {
   var hash = window.location.hash.replace(/^#/, '');
-  return ['login', 'register', 'dashboard', 'book'].indexOf(hash) !== -1 ? hash : '';
+  return ['login', 'register', 'dashboard', 'book', 'admin'].indexOf(hash) !== -1 ? hash : '';
 }
 
 // ── Helpers ───────────────────────────────────────────────
@@ -1064,6 +1192,27 @@ function updateDocMunicipalities() {
   populateSel('docMunicipality', munis);
 }
 
+function updateAdminCircles() {
+  const st = document.getElementById('adminState').value;
+  if (!st) return;
+  const circles = [...new Set(
+    regionsData.filter(i => String(i[0]).trim() === st.trim()).map(i => String(i[1]).trim()).filter(Boolean)
+  )];
+  populateSel('adminCircle', circles);
+  populateSel('adminMunicipality', []);
+}
+
+function updateAdminMunicipalities() {
+  const st = document.getElementById('adminState').value;
+  const ci = document.getElementById('adminCircle').value;
+  if (!st || !ci) return;
+  const munis = [...new Set(
+    regionsData.filter(i => String(i[0]).trim() === st.trim() && String(i[1]).trim() === ci.trim())
+                .map(i => String(i[2]).trim()).filter(Boolean)
+  )];
+  populateSel('adminMunicipality', munis);
+}
+
 // ── Validation steps ──────────────────────────────────────
 const TRUSTED_EMAIL_DOMAINS = ['gmail.com','outlook.com','hotmail.com','yahoo.com','icloud.com','proton.me','protonmail.com','zohomail.com','gmx.com','mail.com'];
 function isValidTrustedEmail(email){
@@ -1102,6 +1251,228 @@ function toggleDocSpecialty() {
   const on=document.getElementById('docType').value==='Specialist';
   document.getElementById('docSpecialtyContainer').style.display=on?'block':'none';
 }
+function toggleAdminSpecialty() {
+  const on=document.getElementById('adminType').value==='Specialist';
+  document.getElementById('adminSpecialtyContainer').style.display=on?'block':'none';
+}
+
+// ── Admin Panel ─────────────────────────────────────────────
+// Reachable only via /#admin. adminToken is a short-lived (2h) JWT
+// issued by admin_login and kept in sessionStorage — it's wiped when
+// the tab closes, unlike localStorage, since this is a sensitive
+// session that shouldn't silently outlive the visit.
+let adminToken = sessionStorage.getItem('adminToken') || null;
+let adminCurrentDoctorId = null;
+
+function adminShowSearchIfLoggedIn() {
+  showStepById(adminToken ? 'admin-search' : 'admin-login');
+}
+
+function adminLogin() {
+  hideMsg('adminLoginMsg');
+  const secret = document.getElementById('adminSecretInput').value;
+  if (!secret) return showFieldMsg('adminLoginMsg', 'Please enter the admin secret.');
+  setBtnLoading('btnAdminLogin', true);
+  fetch(scriptURL, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ action: 'admin_login', adminSecret: secret })
+  })
+  .then(r => r.json())
+  .then(data => {
+    if (data.result === 'success') {
+      adminToken = data.adminToken;
+      sessionStorage.setItem('adminToken', adminToken);
+      document.getElementById('adminSecretInput').value = '';
+      showStepById('admin-search');
+    } else {
+      showFieldMsg('adminLoginMsg', data.message || 'Invalid admin secret.');
+    }
+  })
+  .catch(() => showFieldMsg('adminLoginMsg', 'Network error. Please try again.'))
+  .finally(() => setBtnLoading('btnAdminLogin', false, 'Log In'));
+}
+
+function adminLogout() {
+  adminToken = null;
+  adminCurrentDoctorId = null;
+  sessionStorage.removeItem('adminToken');
+  document.getElementById('adminSearchInput').value = '';
+  showStepById('admin-login');
+}
+
+// A stale/expired token produces the same "session expired" message from
+// every admin_* endpoint — this is the one place that handles it, so
+// every admin action below just calls this instead of repeating the check.
+function adminHandleSessionError(message) {
+  if (/session/i.test(message || '')) { adminLogout(); return true; }
+  return false;
+}
+
+function adminSearchDoctor() {
+  hideMsg('adminSearchMsg');
+  const identifier = document.getElementById('adminSearchInput').value.trim();
+  if (!identifier) return showFieldMsg('adminSearchMsg', 'Enter an email or phone number.');
+  setBtnLoading('btnAdminSearch', true);
+  fetch(scriptURL, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ action: 'admin_search_doctor', adminToken, identifier })
+  })
+  .then(r => r.json())
+  .then(data => {
+    if (data.result !== 'success') {
+      if (adminHandleSessionError(data.message)) return;
+      return showFieldMsg('adminSearchMsg', data.message || 'Doctor not found.');
+    }
+    adminPopulateProfile(data.doctor);
+    showStepById('admin-profile');
+  })
+  .catch(() => showFieldMsg('adminSearchMsg', 'Network error. Please try again.'))
+  .finally(() => setBtnLoading('btnAdminSearch', false, 'Search'));
+}
+
+function renderAdminWorkingDaysToggles(activeDays) {
+  const set = new Set((activeDays && activeDays.length) ? activeDays : [0,1,2,3,4,5,6]);
+  const box = document.getElementById('adminWorkingDaysContainer');
+  box.innerHTML = DAY_NAMES.map((name, idx) => `
+    <div class="toggle-wrap" style="margin:0;justify-content:space-between">
+      <label style="margin:0">${name}</label>
+      <label class="toggle">
+        <input type="checkbox" class="admin-wd-toggle" data-day="${idx}" ${set.has(idx)?'checked':''}>
+        <span class="slider"></span>
+      </label>
+    </div>`).join('');
+}
+function getAdminSelectedWorkingDays() {
+  return Array.from(document.querySelectorAll('.admin-wd-toggle'))
+    .filter(cb => cb.checked)
+    .map(cb => parseInt(cb.dataset.day, 10));
+}
+
+function adminPopulateProfile(doc) {
+  adminCurrentDoctorId = doc.id;
+  document.getElementById('adminProfileTitle').textContent = 'Dr. ' + (doc.firstName||'') + ' ' + (doc.lastName||'');
+  document.getElementById('adminFirstName').value = doc.firstName || '';
+  document.getElementById('adminLastName').value  = doc.lastName  || '';
+  document.getElementById('adminBirthDate').value = doc.birthDate ? String(doc.birthDate).split('T')[0].split(' ')[0] : '';
+  document.getElementById('adminPhone').value = doc.phone || '';
+  document.getElementById('adminEmail').value = doc.email || '';
+  document.getElementById('adminAddress').value = doc.address || '';
+  document.getElementById('adminDailyLimit').value = doc.dailyLimit || 40;
+  document.getElementById('adminIsActive').checked = !!doc.isActive;
+  document.getElementById('adminIsVerified').checked = !!doc.isVerified;
+  document.getElementById('adminWorkStart').value = doc.workStart || '08:00';
+  document.getElementById('adminWorkEnd').value = doc.workEnd || '17:00';
+  document.getElementById('adminType').value = doc.type || 'General';
+  toggleAdminSpecialty();
+  document.getElementById('adminSpecialty').value = doc.specialty || '';
+
+  // Location cascade: each select must be populated before the next
+  // level's value can be set, same pattern as the signup wizard.
+  document.getElementById('adminState').value = doc.state || '';
+  updateAdminCircles();
+  document.getElementById('adminCircle').value = doc.circle || '';
+  updateAdminMunicipalities();
+  document.getElementById('adminMunicipality').value = doc.municipality || '';
+
+  renderAdminWorkingDaysToggles(doc.workingDays);
+
+  document.getElementById('adminSubLabel').textContent =
+    doc.subscriptionDuration > 0 ? doc.subscriptionDuration + ' Month(s)' : 'Free Trial';
+  document.getElementById('adminSubStatus').textContent = doc.subscriptionStatus || '—';
+  document.getElementById('adminSubDays').textContent =
+    (doc.daysRemaining !== null && doc.daysRemaining !== undefined) ? doc.daysRemaining : '—';
+}
+
+function adminSaveDoctor() {
+  hideMsg('adminProfileMsg');
+  if (!adminCurrentDoctorId) return;
+  const firstName = document.getElementById('adminFirstName').value.trim();
+  const lastName  = document.getElementById('adminLastName').value.trim();
+  const payload = {
+    action: 'admin_update_doctor',
+    adminToken,
+    id: adminCurrentDoctorId,
+    firstName, lastName,
+    birthDate: document.getElementById('adminBirthDate').value || null,
+    phone: document.getElementById('adminPhone').value.trim(),
+    email: document.getElementById('adminEmail').value.trim(),
+    state: document.getElementById('adminState').value,
+    circle: document.getElementById('adminCircle').value,
+    municipality: document.getElementById('adminMunicipality').value,
+    address: document.getElementById('adminAddress').value.trim(),
+    type: document.getElementById('adminType').value,
+    specialty: document.getElementById('adminType').value === 'Specialist' ? document.getElementById('adminSpecialty').value : null,
+    dailyLimit: Number(document.getElementById('adminDailyLimit').value) || 40,
+    isActive: document.getElementById('adminIsActive').checked,
+    isVerified: document.getElementById('adminIsVerified').checked,
+    workStart: document.getElementById('adminWorkStart').value,
+    workEnd: document.getElementById('adminWorkEnd').value,
+    workingDays: getAdminSelectedWorkingDays()
+  };
+  setBtnLoading('btnAdminSave', true);
+  fetch(scriptURL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })
+  .then(r => r.json())
+  .then(data => {
+    if (data.result === 'success') {
+      showMsg('adminProfileMsg', 'Saved successfully.', 'success');
+      document.getElementById('adminProfileTitle').textContent = 'Dr. ' + firstName + ' ' + lastName;
+    } else {
+      if (adminHandleSessionError(data.message)) return;
+      showMsg('adminProfileMsg', data.message || 'Failed to save.', 'error');
+    }
+  })
+  .catch(() => showMsg('adminProfileMsg', 'Network error. Please try again.', 'error'))
+  .finally(() => setBtnLoading('btnAdminSave', false, 'Save Changes'));
+}
+
+function adminResetPassword() {
+  hideMsg('adminProfileMsg');
+  if (!adminCurrentDoctorId) return;
+  const pw = document.getElementById('adminNewPassword').value;
+  if (!pw || pw.length < 8) return showMsg('adminProfileMsg', 'Password must be at least 8 characters.', 'error');
+  setBtnLoading('btnAdminResetPw', true);
+  fetch(scriptURL, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ action: 'admin_reset_password', adminToken, id: adminCurrentDoctorId, newPassword: pw })
+  })
+  .then(r => r.json())
+  .then(data => {
+    if (data.result === 'success') {
+      showMsg('adminProfileMsg', 'Password reset successfully.', 'success');
+      document.getElementById('adminNewPassword').value = '';
+    } else {
+      if (adminHandleSessionError(data.message)) return;
+      showMsg('adminProfileMsg', data.message || 'Failed to reset password.', 'error');
+    }
+  })
+  .catch(() => showMsg('adminProfileMsg', 'Network error. Please try again.', 'error'))
+  .finally(() => setBtnLoading('btnAdminResetPw', false, 'Reset Password'));
+}
+
+function adminDeleteDoctor() {
+  if (!adminCurrentDoctorId) return;
+  const name = document.getElementById('adminProfileTitle').textContent;
+  const sure = confirm('Permanently delete ' + name + '? This also deletes all of their appointments. This cannot be undone.');
+  if (!sure) return;
+  fetch(scriptURL, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ action: 'admin_delete_doctor', adminToken, id: adminCurrentDoctorId })
+  })
+  .then(r => r.json())
+  .then(data => {
+    if (data.result === 'success') {
+      alert('Doctor account deleted.');
+      adminCurrentDoctorId = null;
+      document.getElementById('adminSearchInput').value = '';
+      showStepById('admin-search');
+    } else {
+      if (adminHandleSessionError(data.message)) return;
+      alert(data.message || 'Failed to delete.');
+    }
+  })
+  .catch(() => alert('Network error. Please try again.'));
+}
+
 
 // ── Doctor Sign Up: step validation ────────────────────────
 function validateDocStep1() {
@@ -1686,6 +2057,7 @@ function restoreDoctorSession() {
   if (route === 'login') showLoginSection('none');
   else if (route === 'register') showSignUpSection('none');
   else if (route === 'book') nextStep(1, 'none');
+  else if (route === 'admin') adminShowSearchIfLoggedIn();
   // 'dashboard' and '' (home) are resolved by restoreDoctorSession() below,
   // which redirects /dashboard → /login when there is no valid session.
 })();
@@ -1696,6 +2068,7 @@ window.addEventListener('popstate', function(){
   if (route === 'login') showLoginSection('none');
   else if (route === 'register') showSignUpSection('none');
   else if (route === 'book') nextStep(1, 'none');
+  else if (route === 'admin') adminShowSearchIfLoggedIn();
   else if (route === 'dashboard') {
     if (currentDoctorEmail) showDashboard('none');
     else showLoginSection('replace');
