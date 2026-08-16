@@ -6,6 +6,7 @@
 
 require('dotenv').config();
 const express  = require('express');
+const crypto   = require('crypto');
 const cors     = require('cors');
 const bcrypt   = require('bcryptjs');
 const jwt      = require('jsonwebtoken');
@@ -66,6 +67,17 @@ const writeLimiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
   message: { result: 'error', message: 'Too many requests. Please try again later.' }
+});
+// Deliberately much stricter than loginLimiter — this guards admin_login,
+// which can take over any doctor account if the admin secret is guessed.
+// 8 tries / 30 min makes brute-forcing a long random secret practically
+// impossible while still letting a human who mistypes it a few times retry.
+const adminLimiter = rateLimit({
+  windowMs: 30 * 60 * 1000,
+  max: 8,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { result: 'error', message: 'Too many attempts. Please try again later.' }
 });
 
 // ── Auth helpers ──────────────────────────────────────────────
@@ -483,6 +495,13 @@ function apiRateLimiter(req, res, next) {
   req._parsedBody = data;
   if (data.action === 'login' || data.action === 'check_availability') return loginLimiter(req, res, next);
   if (data.action === 'signup' || data.action === 'book') return writeLimiter(req, res, next);
+  // Only admin_login needs the strict limiter — it's the one guessable
+  // secret (ADMIN_SECRET). Once logged in, the other admin_* actions are
+  // gated by a signed token instead, so normal admin usage (search,
+  // update, delete across several doctors in one session) isn't
+  // artificially capped at 8 calls per 30 min.
+  if (data.action === 'admin_login') return adminLimiter(req, res, next);
+  if (typeof data.action === 'string' && data.action.startsWith('admin_')) return writeLimiter(req, res, next);
   return next();
 }
 
@@ -519,6 +538,170 @@ app.post('/api', apiRateLimiter, async (req, res) => {
         return fail(res, 'Phone is already registered.', 'phone');
     }
 
+    return res.json({ result: 'success' });
+  }
+
+  // ── Admin panel actions ──────────────────────────────────────
+  // Reachable only via a direct link to /#admin (nothing in the UI
+  // links to it). admin_login checks ADMIN_SECRET (a Render env var,
+  // never present in the frontend) and issues a short-lived admin JWT;
+  // every other admin_* action requires that token. Two independent
+  // secrets have to leak before any of this is usable, and both are
+  // guarded by adminLimiter (8 tries / 30 min for the login itself).
+
+  if (action === 'admin_login') {
+    const providedSecret = String(data.adminSecret || '');
+    const configuredSecret = process.env.ADMIN_SECRET || '';
+    // Fail closed: if the env var was never set, refuse everything
+    // rather than accidentally accepting an empty secret.
+    if (!configuredSecret) return fail(res, 'Admin panel is not configured.');
+
+    // Timing-safe comparison — a plain === would let an attacker
+    // recover the secret one character at a time by measuring how
+    // long the comparison takes to fail.
+    const a = Buffer.from(providedSecret);
+    const b = Buffer.from(configuredSecret);
+    const validSecret = a.length === b.length && crypto.timingSafeEqual(a, b);
+    if (!validSecret) return fail(res, 'Invalid admin secret.');
+
+    const adminToken = jwt.sign({ role: 'admin' }, JWT_SECRET, { expiresIn: '2h' });
+    return res.json({ result: 'success', adminToken });
+  }
+
+  // Every other admin_* action requires a valid admin token issued by
+  // admin_login above — checked once here so each action below doesn't
+  // have to repeat it.
+  if (action && action.startsWith('admin_') && action !== 'admin_login') {
+    const token = String(data.adminToken || '');
+    let validToken = false;
+    try {
+      const payload = jwt.verify(token, JWT_SECRET);
+      validToken = !!(payload && payload.role === 'admin');
+    } catch (e) { validToken = false; }
+    if (!validToken) return fail(res, 'Admin session expired or invalid. Please log in again.');
+  }
+
+  if (action === 'admin_search_doctor') {
+    const identifier = String(data.identifier || '').trim();
+    if (!identifier) return fail(res, 'Enter an email or phone number.');
+
+    // Same safe pattern used by the doctor-facing login: two separate
+    // parameterized .eq() lookups, never a hand-built filter string.
+    const [byEmail, byPhone] = await Promise.all([
+      supabase.from('doctors').select('*').eq('email', identifier.toLowerCase()).limit(1),
+      supabase.from('doctors').select('*').eq('phone', identifier).limit(1)
+    ]);
+    const doc = (byEmail.data && byEmail.data[0]) || (byPhone.data && byPhone.data[0]);
+    if (!doc) return fail(res, 'No doctor found with that email or phone.');
+
+    const sub = await ensureTrial(doc);
+    const info = subscriptionInfo(sub.start, sub.end, sub.duration);
+
+    // NOTE: `password` (the bcrypt hash) is deliberately never included —
+    // there is no reason for it to ever leave the database, even to an
+    // authenticated admin session.
+    return res.json({
+      result: 'success',
+      doctor: {
+        id: doc.id,
+        firstName: doc.first_name,
+        lastName: doc.last_name,
+        email: doc.email,
+        phone: doc.phone,
+        birthDate: doc.birth_date,
+        state: doc.state,
+        circle: doc.circle,
+        municipality: doc.municipality,
+        address: doc.address,
+        type: doc.type,
+        specialty: doc.specialty,
+        dailyLimit: doc.daily_limit,
+        isActive: doc.is_active,
+        isVerified: doc.verified,
+        workingDays: [...parseWorkingDays(doc.working_days)],
+        workStart: doc.work_start,
+        workEnd: doc.work_end,
+        subscriptionStart:    info.subscriptionStart,
+        subscriptionEnd:      info.subscriptionEnd,
+        subscriptionDuration: info.subscriptionDuration,
+        subscriptionStatus:   info.subscriptionStatus,
+        daysRemaining:        info.daysRemaining
+      }
+    });
+  }
+
+  if (action === 'admin_update_doctor') {
+    const id = Number(data.id);
+    if (!id) return fail(res, 'Missing doctor id.');
+
+    // Whitelist of columns the admin panel is allowed to touch — never
+    // spread `data` directly into `.update()`, which would let arbitrary
+    // extra keys (e.g. `password`, `id`) be overwritten by a crafted request.
+    const update = {};
+    if (data.firstName    !== undefined) update.first_name  = String(data.firstName).trim();
+    if (data.lastName     !== undefined) update.last_name   = String(data.lastName).trim();
+    if (data.phone        !== undefined) update.phone       = String(data.phone).trim();
+    if (data.birthDate    !== undefined) update.birth_date  = data.birthDate || null;
+    if (data.state        !== undefined) update.state       = String(data.state).trim();
+    if (data.circle       !== undefined) update.circle      = String(data.circle).trim();
+    if (data.municipality !== undefined) update.municipality = String(data.municipality).trim();
+    if (data.address      !== undefined) update.address     = String(data.address).trim();
+    if (data.type         !== undefined) update.type        = String(data.type).trim();
+    if (data.specialty    !== undefined) update.specialty   = data.specialty || null;
+    if (data.dailyLimit   !== undefined) update.daily_limit = Number(data.dailyLimit) || 40;
+    if (data.isActive     !== undefined) update.is_active   = !!data.isActive;
+    if (data.isVerified   !== undefined) update.verified    = !!data.isVerified;
+    if (data.workStart    !== undefined) update.work_start  = data.workStart;
+    if (data.workEnd      !== undefined) update.work_end    = data.workEnd;
+    if (Array.isArray(data.workingDays)) {
+      update.working_days = data.workingDays.map(Number).filter(n => n >= 0 && n <= 6).join(',');
+    }
+
+    // Email changes go through the same duplicate check as
+    // check_availability, but excluding this doctor's own current row.
+    if (data.email !== undefined) {
+      const newEmail = String(data.email).trim().toLowerCase();
+      if (newEmail) {
+        const { data: existing } = await supabase
+          .from('doctors').select('id').eq('email', newEmail).neq('id', id).limit(1);
+        if (existing && existing.length) return fail(res, 'Email is already used by another doctor.', 'email');
+        update.email = newEmail;
+      }
+    }
+
+    if (Object.keys(update).length === 0) return fail(res, 'Nothing to update.');
+
+    const { error: updateErr } = await supabase.from('doctors').update(update).eq('id', id);
+    if (updateErr) return fail(res, 'Failed to update: ' + updateErr.message);
+    return res.json({ result: 'success' });
+  }
+
+  if (action === 'admin_delete_doctor') {
+    const id = Number(data.id);
+    if (!id) return fail(res, 'Missing doctor id.');
+
+    // Delete this doctor's appointments first so patients don't see stale
+    // bookings for an account that no longer exists (rather than relying
+    // solely on cleanupOldAppointments' orphan sweep, which only runs
+    // hourly and only removes appointments older than 2 days).
+    const { error: apptErr } = await supabase.from('appointments').delete().eq('doctor_id', id);
+    if (apptErr) return fail(res, 'Failed to delete appointments: ' + apptErr.message);
+
+    const { error: docErr } = await supabase.from('doctors').delete().eq('id', id);
+    if (docErr) return fail(res, 'Failed to delete doctor: ' + docErr.message);
+
+    return res.json({ result: 'success' });
+  }
+
+  if (action === 'admin_reset_password') {
+    const id = Number(data.id);
+    const newPassword = String(data.newPassword || '');
+    if (!id) return fail(res, 'Missing doctor id.');
+    if (newPassword.length < 8) return fail(res, 'Password must be at least 8 characters.');
+
+    const newHash = await bcrypt.hash(newPassword, 12);
+    const { error: updateErr } = await supabase.from('doctors').update({ password: newHash }).eq('id', id);
+    if (updateErr) return fail(res, 'Failed to update password: ' + updateErr.message);
     return res.json({ result: 'success' });
   }
 
